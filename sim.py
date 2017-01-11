@@ -5,8 +5,7 @@ from pandas import DataFrame
 
 class Sim(object):
 
-    def __init__(self, model, samples, weights):
-        self.model = model
+    def __init__(self, samples, weights):
         self.samples = samples
         self.features = samples.columns
         self.ids = samples.index
@@ -14,23 +13,25 @@ class Sim(object):
         self.sample_size = samples.index.size
         self.similarity_samples = DataFrame(np.identity(samples.index.size), index=samples.index, columns=samples.index)
         self.handlers = {}
+        self.format_handlers = {}
         self.output_num = 20
-        self.init_handlers()
+        self._init_feature_handlers()
+        self._init_input_format()
 
-    def format_input(self, base, cur, feature):
-        handler = {}
-        handler['year'] = [int(base), int(cur)]
-        handler['tag'] = [eval(base), eval(cur)]
-        handler['writer'] = [eval(base), eval(cur)]
-        handler['director'] = [eval(base), eval(cur)]
-        handler['country'] = [eval(base), eval(cur)]
-        handler['episodes'] = [int(base), int(cur)]
-        handler['actor'] = [eval(base), eval(cur)]
-        handler['language'] = [base, cur]
-        handler['duration'] = [int(base), int(cur)]
-        return handler[feature]
+    def _init_input_format(self):
 
-    def _init_handlers(self):
+        self.format_handlers['year'] = lambda x, y: [int(x), int(y)]
+        self.format_handlers['tag'] = lambda x, y: [eval(x), eval(y)]
+        self.format_handlers['writer'] = lambda x, y: [eval(x), eval(y)]
+        self.format_handlers['director'] = lambda x, y: [eval(x), eval(y)]
+        self.format_handlers['country'] = lambda x, y: [eval(x), eval(y)]
+        self.format_handlers['episodes'] = lambda x, y: [int(x), int(y)]
+        self.format_handlers['actor'] = lambda x, y: [eval(x), eval(y)]
+        self.format_handlers['language'] = lambda x, y: [x, y]
+        self.format_handlers['duration'] = lambda x, y: [int(x), int(y)]
+
+    def _init_feature_handlers(self):
+
         self.handlers['year'] = self.calculate_year_similarity
         self.handlers['tag'] = self.calculate_tag_similarity
         self.handlers['writer'] = self.calculate_writer_similarity
@@ -44,29 +45,30 @@ class Sim(object):
     def process(self):
         sim_matrix = self.similarity_samples
         for base_index in self.ids:
-            record = self.samples[base_index]
+            record = self.samples.T[base_index]
             for cur_index in self.ids:
+                if sim_matrix[cur_index][base_index] or sim_matrix[base_index][cur_index]:
+                    continue
                 try:
-                    if sim_matrix[cur_index][base_index] or sim_matrix[base_index][cur_index]:
-                        continue
-                    cur_record = self.samples[cur_index]
+                    cur_record = self.samples.T[cur_index]
                     listn = []
                     for feature, handler in self.handlers.items():
-                        [base, cur] = self.format_input(record[feature], cur_record[feature], feature)
+                        [base, cur] = self.format_handlers[feature](record[feature], cur_record[feature])
                         similarity = self.handlers[feature](base, cur)
                         listn.append(similarity)
                     # TODO
                     similar = norm(np.array(listn) * self.weights_feature)
-                    sim_matrix[self.ids[cur_index]][self.ids[base_index]] = similar
-                    sim_matrix[self.ids[base_index]][self.ids[cur_index]] = similar
-                except:
+                    sim_matrix[cur_index][base_index] = similar
+                    sim_matrix[base_index][cur_index] = similar
+                except NameError, e:
+                    print e
                     continue
         for index in self.ids:
-            format_result = self.calculate_output(index, sim_matrix)
+            format_result = self._calculate_output(index, sim_matrix)
             print index, format_result
 
     def _calculate_output(self, cover_id, similar_frame):
-        sorted_result = similar_frame.sort_index(by=cover_id, ascending=False)[cover_id]
+        sorted_result = similar_frame.sort_values(by=cover_id, ascending=False)[cover_id]
         result = {}
         for index in range(len(sorted_result)):
             if sorted_result.index[index] == cover_id:
