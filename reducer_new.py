@@ -5,33 +5,15 @@ from pandas import DataFrame
 from abc import ABCMeta, abstractmethod
 import sys
 
-'''
-listidc  = []
-listdc   = []
-listidd  = []
-listdd   = []
-listide  = []
-listde   = []
-listiden = []
-listden  = []
-listidm  = []
-listdm   = []
-listids  = []
-listds   = []
-listidt  = []
-listdt   = []
-listidv  = []
-listdv   = []
-'''
 weights_all = {}
 weights_all['cartoorn'] = np.array([0.3, 0.9, 0.1, 0.5, 0.7, 0.3, 0.8, 0.6, 0.3])
-wd = np.array([0.3, 0.9, 0.1, 0.5, 0.7, 0.3, 0.8, 0.6, 0.3])
-we = np.array([0.3, 0.9, 0.1, 0.5, 0.7, 0.3, 0.8, 0.6, 0.3])
-wen = np.array([0.3, 0.9, 0.1, 0.5, 0.7, 0.3, 0.8, 0.6, 0.3])
-wm = np.array([0.3, 0.9, 0.1, 0.5, 0.7, 0.3, 0.8, 0.6, 0.3])
-ws = np.array([0.3, 0.9, 0.1, 0.5, 0.7, 0.3, 0.8, 0.6, 0.3])
-wt = np.array([0.3, 0.9, 0.1, 0.5, 0.7, 0.3, 0.8, 0.6, 0.3])
-wv = np.array([0.3, 0.9, 0.1, 0.5, 0.7, 0.3, 0.8, 0.6, 0.3])
+weights_all['doc'] = np.array([0.3, 0.9, 0.1, 0.5, 0.7, 0.3, 0.8, 0.6, 0.3])
+weights_all['education'] = np.array([0.3, 0.9, 0.1, 0.5, 0.7, 0.3, 0.8, 0.6, 0.3])
+weights_all['entertainment'] = np.array([0.3, 0.9, 0.1, 0.5, 0.7, 0.3, 0.8, 0.6, 0.3])
+weights_all['movie'] = np.array([0.3, 0.9, 0.1, 0.5, 0.7, 0.3, 0.8, 0.6, 0.3])
+weights_all['sports'] = np.array([0.3, 0.9, 0.1, 0.5, 0.7, 0.3, 0.8, 0.6, 0.3])
+weights_all['tv'] = np.array([0.3, 0.9, 0.1, 0.5, 0.7, 0.3, 0.8, 0.6, 0.3])
+weights_all['variety'] = np.array([0.3, 0.9, 0.1, 0.5, 0.7, 0.3, 0.8, 0.6, 0.3])
 
 
 models = ['cartoon', 'doc', 'education', 'entertainment', 'movie', 'sports', 'tv', 'variety']
@@ -147,7 +129,7 @@ def format_input(base, cur, feature):
 class Sim(object):
     __metaclass__ = ABCMeta
 
-    def __init__(self, model, samples, weights ):
+    def __init__(self, model, samples, weights):
         self.model = model
         self.samples = samples
         self.features = samples.columns
@@ -157,6 +139,7 @@ class Sim(object):
         self.similarity_samples = DataFrame(np.identity(samples.index.size), index=samples.index, columns=samples.index)
         self.handlers = {}
         self.output_num = 20
+        self.init_handlers()
 
     def format_input(self, base, cur, feature):
         handler = {}
@@ -172,37 +155,37 @@ class Sim(object):
         return handler[feature]
 
     def init_handlers(self):
-        self.handlers['year'] = calculate_year_similarity
-        self.handlers['tag'] = calculate_tag_similarity
-        self.handlers['writer'] = calculate_writer_similarity
-        self.handlers['director'] = calculate_director_similarity
-        self.handlers['country'] = calculate_country_similarity
-        self.handlers['episodes'] = calculate_episodes_similarity
-        self.handlers['actor'] = calculate_actor_similarity
-        self.handlers['language'] = calculate_language_similarity
-        self.handlers['duration'] = calculate_duration_similarity
+        self.handlers['year'] = self.calculate_year_similarity
+        self.handlers['tag'] = self.calculate_tag_similarity
+        self.handlers['writer'] = self.calculate_writer_similarity
+        self.handlers['director'] = self.calculate_director_similarity
+        self.handlers['country'] = self.calculate_country_similarity
+        self.handlers['episodes'] = self.calculate_episodes_similarity
+        self.handlers['actor'] = self.calculate_actor_similarity
+        self.handlers['language'] = self.calculate_language_similarity
+        self.handlers['duration'] = self.calculate_duration_similarity
 
     def process(self):
         sim_matrix = self.similarity_samples
         for base_index in self.ids:
-            record = samples[base_index]
+            record = self.samples[base_index]
             for cur_index in self.ids:
                 try:
                     if sim_matrix[cur_index][base_index] or sim_matrix[base_index][cur_index]:
                         continue
-                    cur_record = samples[cur_index]
+                    cur_record = self.samples[cur_index]
                     listn = []
                     for feature, handler in self.handlers.items():
                         [base, cur] = self.format_input(record[feature], cur_record[feature], feature)
                         similarity = handlers[feature](base, cur)
                         listn.append(similarity)
-                # TODO
-                    similar = norm(np.array(listn) * features_weight)
+                    # TODO
+                    similar = norm(np.array(listn) * self.weights_feature)
                     sim_matrix[self.ids[cur_index]][self.ids[base_index]] = similar
                     sim_matrix[self.ids[base_index]][self.ids[cur_index]] = similar
                 except:
                     continue
-        for index in samples.index:
+        for index in self.ids:
             format_result = self.calculate_output(index, sim_matrix)
             print cartoon_id, format_result
 
@@ -217,6 +200,23 @@ class Sim(object):
             result[sorted_result.index[index]] = sorted_result[index]
         format_result = {'Results': result, 'V': '1.0.0'}
         return format_result
+
+    def cosine_similarity(self, vector1, vector2):
+        similarity = np.dot(vector1, vector2) / (norm(vector1) * norm(vector2) + 0.00001)
+        return similarity
+
+    def weight_func(self, index):
+        if index <= 0:
+            raise ValueError
+        return np.exp(1 - np.sqrt(index))
+
+    def tune_similarity_list(self, base, cur):
+        weights_cur = []
+        for j in range(len(base)):
+            tmp_weight = weight_func(cur.index(base[j]) + 1) if base[j] in cur else 0
+            weights_cur.append(tmp_weight)
+        weights_base = weight_func(range(1, 1 + len(base)))
+        return cosine_similarity(np.array(weights_cur), weights_base)
 
     @abstractmethod
     def calculate_year_similarity(self, year_base, year_cur):
@@ -251,6 +251,35 @@ class Sim(object):
         pass
 
     @abstractmethod
+    def calculate_duration_similarity(self, writer_base, writer_cur):
+        pass
+
+
+class Cartoon_Sim(Sim):
+    def calculate_year_similarity(self, year_base, year_cur):
+        pass
+
+    def calculate_tag_similarity(self, tags_base, tags_cur):
+        pass
+
+    def calculate_writer_similarity(self, writer_base, writer_cur):
+        pass
+
+    def calculate_director_similarity(self, writer_base, writer_cur):
+        pass
+
+    def calculate_country_similarity(self, writer_base, writer_cur):
+        pass
+
+    def calculate_episodes_similarity(self, writer_base, writer_cur):
+        pass
+
+    def calculate_actor_similarity(self, writer_base, writer_cur):
+        pass
+
+    def calculate_language_similarity(self, writer_base, writer_cur):
+        pass
+
     def calculate_duration_similarity(self, writer_base, writer_cur):
         pass
 
@@ -302,3 +331,205 @@ for cartoon_id in samples.index:
     format_result = calculate_output(cartoon_id, similar_cartoon)
     print cartoon_id, format_result
 
+
+class Doc_Sim(Sim):
+    def calculate_year_similarity(self, year_base, year_cur):
+        pass
+
+    def calculate_tag_similarity(self, tags_base, tags_cur):
+        pass
+
+    def calculate_writer_similarity(self, writer_base, writer_cur):
+        pass
+
+    def calculate_director_similarity(self, writer_base, writer_cur):
+        pass
+
+    def calculate_country_similarity(self, writer_base, writer_cur):
+        pass
+
+    def calculate_episodes_similarity(self, writer_base, writer_cur):
+        pass
+
+    def calculate_actor_similarity(self, writer_base, writer_cur):
+        pass
+
+    def calculate_language_similarity(self, writer_base, writer_cur):
+        pass
+
+    def calculate_duration_similarity(self, writer_base, writer_cur):
+        pass
+
+
+class Educatiion_Sim(Sim):
+    def calculate_year_similarity(self, year_base, year_cur):
+        pass
+
+    def calculate_tag_similarity(self, tags_base, tags_cur):
+        pass
+
+    def calculate_writer_similarity(self, writer_base, writer_cur):
+        pass
+
+    def calculate_director_similarity(self, writer_base, writer_cur):
+        pass
+
+    def calculate_country_similarity(self, writer_base, writer_cur):
+        pass
+
+    def calculate_episodes_similarity(self, writer_base, writer_cur):
+        pass
+
+    def calculate_actor_similarity(self, writer_base, writer_cur):
+        pass
+
+    def calculate_language_similarity(self, writer_base, writer_cur):
+        pass
+
+    def calculate_duration_similarity(self, writer_base, writer_cur):
+        pass
+
+
+class Entertainment_Sim(Sim):
+    def calculate_year_similarity(self, year_base, year_cur):
+        pass
+
+    def calculate_tag_similarity(self, tags_base, tags_cur):
+        pass
+
+    def calculate_writer_similarity(self, writer_base, writer_cur):
+        pass
+
+    def calculate_director_similarity(self, writer_base, writer_cur):
+        pass
+
+    def calculate_country_similarity(self, writer_base, writer_cur):
+        pass
+
+    def calculate_episodes_similarity(self, writer_base, writer_cur):
+        pass
+
+    def calculate_actor_similarity(self, writer_base, writer_cur):
+        pass
+
+    def calculate_language_similarity(self, writer_base, writer_cur):
+        pass
+
+    def calculate_duration_similarity(self, writer_base, writer_cur):
+        pass
+
+
+class Movie_Sim(Sim):
+    def calculate_year_similarity(self, year_base, year_cur):
+        pass
+
+    def calculate_tag_similarity(self, tags_base, tags_cur):
+        pass
+
+    def calculate_writer_similarity(self, writer_base, writer_cur):
+        pass
+
+    def calculate_director_similarity(self, writer_base, writer_cur):
+        pass
+
+    def calculate_country_similarity(self, writer_base, writer_cur):
+        pass
+
+    def calculate_episodes_similarity(self, writer_base, writer_cur):
+        pass
+
+    def calculate_actor_similarity(self, writer_base, writer_cur):
+        pass
+
+    def calculate_language_similarity(self, writer_base, writer_cur):
+        pass
+
+    def calculate_duration_similarity(self, writer_base, writer_cur):
+        pass
+
+
+class Sports_Sim(Sim):
+    def calculate_year_similarity(self, year_base, year_cur):
+        pass
+
+    def calculate_tag_similarity(self, tags_base, tags_cur):
+        pass
+
+    def calculate_writer_similarity(self, writer_base, writer_cur):
+        pass
+
+    def calculate_director_similarity(self, writer_base, writer_cur):
+        pass
+
+    def calculate_country_similarity(self, writer_base, writer_cur):
+        pass
+
+    def calculate_episodes_similarity(self, writer_base, writer_cur):
+        pass
+
+    def calculate_actor_similarity(self, writer_base, writer_cur):
+        pass
+
+    def calculate_language_similarity(self, writer_base, writer_cur):
+        pass
+
+    def calculate_duration_similarity(self, writer_base, writer_cur):
+        pass
+
+
+class TV_Sim(Sim):
+    def calculate_year_similarity(self, year_base, year_cur):
+        pass
+
+    def calculate_tag_similarity(self, tags_base, tags_cur):
+        pass
+
+    def calculate_writer_similarity(self, writer_base, writer_cur):
+        pass
+
+    def calculate_director_similarity(self, writer_base, writer_cur):
+        pass
+
+    def calculate_country_similarity(self, writer_base, writer_cur):
+        pass
+
+    def calculate_episodes_similarity(self, writer_base, writer_cur):
+        pass
+
+    def calculate_actor_similarity(self, writer_base, writer_cur):
+        pass
+
+    def calculate_language_similarity(self, writer_base, writer_cur):
+        pass
+
+    def calculate_duration_similarity(self, writer_base, writer_cur):
+        pass
+
+
+class Variety_Sim(Sim):
+    def calculate_year_similarity(self, year_base, year_cur):
+        pass
+
+    def calculate_tag_similarity(self, tags_base, tags_cur):
+        pass
+
+    def calculate_writer_similarity(self, writer_base, writer_cur):
+        pass
+
+    def calculate_director_similarity(self, writer_base, writer_cur):
+        pass
+
+    def calculate_country_similarity(self, writer_base, writer_cur):
+        pass
+
+    def calculate_episodes_similarity(self, writer_base, writer_cur):
+        pass
+
+    def calculate_actor_similarity(self, writer_base, writer_cur):
+        pass
+
+    def calculate_language_similarity(self, writer_base, writer_cur):
+        pass
+
+    def calculate_duration_similarity(self, writer_base, writer_cur):
+        pass
