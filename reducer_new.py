@@ -54,7 +54,7 @@ if __name__ == '__main__':
     '''
     model = 'tv'
     # samples = data_all[model]
-    features_weight = weights_all['cartoon']
+    features_weight = weights_all['tv']
     data = [['2006', '["ni","jiao","bu","lai","xx"]', '["chenglong"]', '["chenglong"]', '["China"]', '22', '["lixiang","xiangli"]', 'english', '46'],
             ['2007', '["jiao","bu","lai"]', '["成龙"]', '["chenglong"]', '["China"]', '24', '["lixiang","xiangli"]', 'english', '80'],
             ['2005', '["jiao","bu","lai"]', '["成龙"]', '["chenglong"]', '["China"]', '20', '["lixiang","xiangli"]', 'english', '50']]
