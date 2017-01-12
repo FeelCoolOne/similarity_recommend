@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import numpy as np
 from numpy.linalg import norm
 from pandas import DataFrame
@@ -52,7 +53,7 @@ class Sim(object):
                 try:
                     cur_record = self.samples.T[cur_index]
                     listn = []
-                    for feature, handler in self.handlers.items():
+                    for feature in self.features:
                         [base, cur] = self.format_handlers[feature](record[feature], cur_record[feature])
                         similarity = self.handlers[feature](base, cur)
                         listn.append(similarity)

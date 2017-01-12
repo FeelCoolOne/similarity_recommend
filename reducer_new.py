@@ -1,4 +1,4 @@
-#!/usr/bin/lst/env python
+# -*- coding: utf-8 -*-
 import numpy as np
 from pandas import DataFrame
 import sim
@@ -56,7 +56,8 @@ if __name__ == '__main__':
     # samples = data_all[model]
     features_weight = weights_all['cartoon']
     data = [['2006', '["ni","jiao","bu","lai","xx"]', '["chenglong"]', '["chenglong"]', '["China"]', '22', '["lixiang","xiangli"]', 'english', '46'],
-            ['2007', '["jiao","bu","lai"]', '["chenglong"]', '["chenglong"]', '["China"]', '24', '["lixiang","xiangli"]', 'english', '80']]
-    samples = DataFrame(data, index=['a', 'b'], columns=features[2:])
+            ['2007', '["jiao","bu","lai"]', '["成龙"]', '["chenglong"]', '["China"]', '24', '["lixiang","xiangli"]', 'english', '80'],
+            ['2005', '["jiao","bu","lai"]', '["成龙"]', '["chenglong"]', '["China"]', '20', '["lixiang","xiangli"]', 'english', '50']]
+    samples = DataFrame(data, index=['a', 'b', 'c'], columns=features[2:])
     model_sim = sim.TV_Sim(samples, features_weight)
     model_sim.process()
