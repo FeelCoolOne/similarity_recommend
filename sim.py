@@ -133,6 +133,7 @@ class Sim(object):
 
 
 class Cartoon_Sim(Sim):
+    
     def calculate_year_similarity(self, year_base, year_cur):
         pass
 

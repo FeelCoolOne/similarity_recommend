@@ -52,7 +52,7 @@ if __name__ == '__main__':
         model_sim = sim.Cartoon_Sim(model, samples, features_weight)
         model_sim.process()
     '''
-    model = 'tv'
+    model = 'movie'
     # samples = data_all[model]
     features_weight = weights_all['tv']
     data = [['2006', '["ni","jiao","bu","lai","xx"]', '["chenglong"]', '["chenglong"]', '["China"]', '22', '["lixiang","xiangli"]', 'english', '46'],
