@@ -1,24 +1,31 @@
-# encoding:utf-8
+# -*- coding: utf-8 -*-
 
 from pymongo import MongoClient
 from pandas import DataFrame
 import cPickle as pickle
+import ConfigParser
 
 
-def init_con():
-    username = 'EPGInfo'
-    password = 'EPGInfo@20150603'
-    con = MongoClient("127.0.0.1", 50000)
-    EPGInfo = con.EPGInfo
+def init_con(config_file_path):
+    cf = ConfigParser.ConfigParser()
+    cf.read(config_file_path)
+    address = cf.get('mongo', 'address')
+    port = int(cf.get('mongo', 'port'))
+    username = cf.get('mongo', 'username')
+    password = cf.get('mongo', 'password')
+    database = cf.get('mongo', 'database')
+    collection = cf.get('mongo', 'collection')
+    con = MongoClient(address, port)
+    EPGInfo = con[database]
     EPGInfo.authenticate(username, password)
-    collection = EPGInfo['chiq_video_converge']
+    collection = EPGInfo[collection]
     # document = collection.find_one({'model': 'movie'})
     return collection
 
 
 def get_documents(collection, condition, num=10):
-    documents = collection.find(condition).limit(num)
-    #documents = collection.find(condition)
+    # documents = collection.find(condition).limit(num)
+    documents = collection.find(condition)
     return documents
 
 
@@ -39,12 +46,15 @@ def filter_pay_status(document):
 
 
 def filetr_year(document):
-    pass
+    year = document.get('year', 'None')
+    if year == 'None':
+        year = document.get('issue', 'None').split('-')[0]
+    return year
 
 
 def fileter_tag(document):
-    document.get('tag', '[]')
-    pass
+    tag = document.get('tag', 'None').split('/')
+    return tag
 
 
 features_handler = {}
@@ -58,6 +68,8 @@ features_handler['tv'] = ['year', 'tag', 'writer', 'director', 'country', 'episo
 features_handler['variety'] = ['year', 'tag', 'writer', 'director', 'country', 'episodes', 'actor', 'language', 'duration']
 
 
+# TODO
+# how to process None feature
 def format_input_record(collection, model):
     # TODO
     # tag diff category
@@ -74,22 +86,22 @@ def format_input_record(collection, model):
         data['enname'] = document.get('enName', 'None')
         data['language'] = document.get('language', 'None')
         data['name'] = document.get('name', 'None')
-        data['issue'] = document.get('issue', '0000-00-00')
-        data['director'] = document.get('director', 'None')
-        data['actor'] = document.get('cast', 'None')
+        # data['issue'] = document.get('issue', '0000-00-00')
+        data['director'] = str(document.get('director', 'None').split('/'))
+        data['actor'] = str(document.get('cast', 'None').split('/'))
         data['grade_score'] = str(document.get('grade_score', -1))
-        data['tag'] = fileter_tag(document)
-        data['country'] = document.get('country', '[]')
-        data['country_group'] = document.get('country_group', '[]')
+        data['tag'] = str(fileter_tag(document))
+        data['country'] = str(document.get('country', 'None').split('/'))
+        # TODO data['country_group'] = document.get('country_group', '[]')
         data['episodes'] = document.get('episodes', -1)
         data['definitions'] = str(document.get('definitions', -1))
-        data['writer'] = document.get('writer', '[]')
+        data['writer'] = str(document.get('writer', 'None').split('/'))
         data['year'] = str(filetr_year(document))
         # 上架
         data['enable'] = document.get('enable', '-1')
         # 碎视频
         data['isClip'] = document.get('isClip', '-1')
-        data['categorys'] = document.get('categorys', '[]')
+        data['categorys'] = document.get('categorys', '')
         data['pp_tencent'] = document.get('pp_tencent', '{}')
         data['pp_iqiyi'] = document.get('pp_iqiyi', '{}')
         data['pp_youpeng'] = document.get('pp_youpeng', '{}')
@@ -102,10 +114,8 @@ def format_input_record(collection, model):
         if data['enable'] in ['0', '-1'] or data['cover_id'] == '-1':
             continue
         record = []
-        for key, value in data.items():
-            if key not in features_handler[model]:
-                continue
-            record.append(value)
+        for feature in features_handler[model]:
+            record.append(data[feature])
         id_stack.append(data['cover_id'])
         data_stack.append(record)
     return DataFrame(data_stack, index=id_stack, columns=features_handler[model])
@@ -115,19 +125,21 @@ def main():
     models = ['movie', 'tv',
               'sports', 'entertainment', 'variety',
               'education', 'doc', 'cartoon']
-    collection = init_con()
+    config_file = './mongodb.ini'
+    collection = init_con(config_file)
     data = {}
     for model in models:
-        data[model] = set()
         documents = get_documents(collection, {'model': model}, 3)
-        for document in documents:
-            id = filter_id(document)
-            data[model].add(id)
+        data[model] = format_input_record(documents, model)
     return data
 
 
 if __name__ == '__main__':
     data = main()
-    print data
-    with open('video_info.dat', 'wb') as f:
+    # print data['tv']
+
+    # for key in data:
+    #     print data[key]
+
+    with open('all_video_info.dat', 'wb') as f:
         pickle.dump(data, f, protocol=True)

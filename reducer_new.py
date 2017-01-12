@@ -19,7 +19,7 @@ weights_all['variety'] = np.array([0.3, 0.9, 0.1, 0.5, 0.7, 0.3, 0.8, 0.6, 0.3])
 models = ['cartoon', 'doc', 'education', 'entertainment', 'movie', 'sports', 'tv', 'variety']
 features = ['id', 'model', 'year', 'tag', 'writer', 'director', 'country', 'episodes', 'actor', 'language', 'duration']
 
-
+'''
 def read_data(filename):
     global models
     global features
@@ -40,7 +40,7 @@ def read_data(filename):
     for model in models:
         data_all[model] = DataFrame(data_all[model], index=ids_all[model], columns=features[2:])
     return ids_all, data_all
-
+'''
 
 if __name__ == '__main__':
     # filename = ''
