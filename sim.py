@@ -69,7 +69,8 @@ class Sim(object):
             yield index, format_result
 
     def _calculate_output(self, cover_id, similar_frame):
-        sorted_result = similar_frame.sort_values(by=cover_id, ascending=False)[cover_id]
+        tmp = similar_frame.sort_values(by=cover_id, ascending=False)[cover_id]
+        sorted_result = 2 / (1 + np.exp(-tmp)) - 1
         result = {}
         for index in range(len(sorted_result)):
             if sorted_result.index[index] == cover_id:

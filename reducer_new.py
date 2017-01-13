@@ -1,11 +1,34 @@
 # -*- coding: utf-8 -*-
 import numpy as np
-from pandas import DataFrame
+# from pandas import DataFrame
 import sim
 import cPickle as pickle
+import logging
+import redis
+import json
+import ConfigParser
+from datetime import date, timedelta
 import sys
 reload(sys)
 sys.setdefaultencoding('utf-8')
+
+
+def set_logger():
+    format = '''[ %(levelname)s %(asctime)s @ %(process)d] (%(filename)s:%(lineno)d) - %(message)s'''
+    curDate = date.today() - timedelta(days=0)
+    log_name = './log/similar_{0}.log'.format(curDate)
+    formatter = logging.Formatter(format)
+    logger = logging.getLogger("vav_result")
+    handler = logging.FileHandler(log_name, 'a')
+    logger.setLevel(logging.INFO)
+    handler.setLevel(logging.INFO)
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
+    return logger
+
+
+logger = set_logger()
+
 
 weights_all = {}
 weights_all['cartoon'] = np.array([0.3, 0.9, 0.1, 0.5, 0.7, 0.3, 0.8, 0.6, 0.3])
@@ -29,59 +52,59 @@ model_handler['variety'] = sim.Variety_Sim
 models = ['cartoon', 'doc', 'education', 'entertainment', 'movie', 'sports', 'tv', 'variety']
 features = ['id', 'model', 'year', 'tag', 'writer', 'director', 'country', 'episodes', 'actor', 'language', 'duration']
 '''
-'''
-def read_data(filename):
-    global models
-    global features
-    data_all = {}
-    ids_all = {}
-    for model in models:
-        data_all[model] = []
-        ids_all[model] = []
-    for line in open(filename, 'r'):
-        try:
-            words = line.strip().split('\t')
-            cover_id = words[0]
-            model = words[1]
-            data_all[model].append(words[2:])
-            ids_all[model].append(cover_id)
-        except:
-            continue
-    for model in models:
-        data_all[model] = DataFrame(data_all[model], index=ids_all[model], columns=features[2:])
-    return ids_all, data_all
-'''
 
 
-def main(file):
+def init_client(config_file_path):
+    global logger
+    cf = ConfigParser.ConfigParser()
+    cf.read(config_file_path)
+    address = cf.get('redis', 'address')
+    port = int(cf.get('redis', 'port'))
+    logger.info('connect redis: {0}:{1}'.format(address, port))
+    try:
+        client = redis.StrictRedis(address, port)
+    except Exception, e:
+        logger.error('connect redis fail: {0}'.format(e))
+        sys.exit()
+    else:
+        logger.info('connection success')
+        return client
+
+
+def main(file, config_file):
+    global logger
     data_all = {}
-    with open(file) as f:
+    logger.info('Start')
+    con = init_client(config_file)
+    logger.info('start read data file: {0}'.format(file))
+    with open(file, 'rb') as f:
         data_all = pickle.load(f)
+    logger.info('finished read data file')
     if len(data_all) == 0:
-        print 'no data to load'
+        logger.error('no data')
         return False
-    for model, data_frame in data_all.iterms():
-        model_handler[model](data_frame, weights_all[model])
-        for record_result in model_sim.process():
-            print record_result
+    key_pattern = 'AlgorithmsCommonBid_Cchiq3Test:SIM:ITI:'
+    for model, data_frame in data_all.items():
+        logger.info('start process data of model {}:'.format(model))
+        logger.info('data record size is {0}'.format(data_frame.index.size))
+        logger.info('data feature: {0}'.format(data_frame.columns.tolist()))
+        logger.debug('data : {0}'.format(data_frame.values.tolist()))
+        model_sim = model_handler[model](data_frame, weights_all[model])
+        count = 0
+        try:
+            for cover_id, result in model_sim.process():
+                logger.debug('{0}  {1}'.format(cover_id, result))
+                # print cover_id, result
+                con.set(key_pattern + cover_id, json.dumps(result))
+                count += 1
+        except Exception, e:
+            logger.error('catched error :{0}, processed num: {1}, model: {2}'.format(e, count, model))
+        logger.info('model {0} has finished'.format(model))
+    logger.info('Finished')
+    return True
 
 
 if __name__ == '__main__':
-    # filename = ''
-    # _, data_all = read_data(filename)
-    '''
-    for model in models:
-        samples = data_all[model]
-        features_weight = weights_all['cartoon']
-        model_sim = sim.Cartoon_Sim(model, samples, features_weight)
-        model_sim.process()
-    '''
-    model = 'movie'
-    # samples = data_all[model]
-    features_weight = weights_all['tv']
-    data = [['2006', '["ni","jiao","bu","lai","xx"]', '["chenglong"]', '["chenglong"]', '["China"]', '22', '["lixiang","xiangli"]', 'english', '46'],
-            ['2007', '["jiao","bu","lai"]', '["成龙"]', '["chenglong"]', '["China"]', '24', '["lixiang","xiangli"]', 'english', '80'],
-            ['2005', '["jiao","bu","lai"]', '["成龙"]', '["chenglong"]', '["China"]', '20', '["lixiang","xiangli"]', 'english', '50']]
-    samples = DataFrame(data, index=['a', 'b', 'c'], columns=features[2:])
-    model_sim = sim.TV_Sim(samples, features_weight)
-
+    data_file = './data/all_video_info.dat'
+    config_file = './etc/config.ini'
+    main(data_file, config_file)
