@@ -2,6 +2,7 @@
 import numpy as np
 from pandas import DataFrame
 import sim
+import cPickle as pickle
 import sys
 reload(sys)
 sys.setdefaultencoding('utf-8')
@@ -15,10 +16,19 @@ weights_all['movie'] = np.array([0.3, 0.9, 0.1, 0.5, 0.7, 0.3, 0.8, 0.6, 0.3])
 weights_all['sports'] = np.array([0.3, 0.9, 0.1, 0.5, 0.7, 0.3, 0.8, 0.6, 0.3])
 weights_all['tv'] = np.array([0.3, 0.9, 0.1, 0.5, 0.7, 0.3, 0.8, 0.6, 0.3])
 weights_all['variety'] = np.array([0.3, 0.9, 0.1, 0.5, 0.7, 0.3, 0.8, 0.6, 0.3])
-
+model_handler = {}
+model_handler['cartoon'] = sim.Cartoon_Sim
+model_handler['doc'] = sim.Doc_Sim
+model_handler['education'] = sim.Educatiion_Sim
+model_handler['entertainment'] = sim.Educatiion_Sim
+model_handler['movie'] = sim.Movie_Sim
+model_handler['sports'] = sim.Sports_Sim
+model_handler['tv'] = sim.TV_Sim
+model_handler['variety'] = sim.Variety_Sim
+'''
 models = ['cartoon', 'doc', 'education', 'entertainment', 'movie', 'sports', 'tv', 'variety']
 features = ['id', 'model', 'year', 'tag', 'writer', 'director', 'country', 'episodes', 'actor', 'language', 'duration']
-
+'''
 '''
 def read_data(filename):
     global models
@@ -42,6 +52,20 @@ def read_data(filename):
     return ids_all, data_all
 '''
 
+
+def main(file):
+    data_all = {}
+    with open(file) as f:
+        data_all = pickle.load(f)
+    if len(data_all) == 0:
+        print 'no data to load'
+        return False
+    for model, data_frame in data_all.iterms():
+        model_handler[model](data_frame, weights_all[model])
+        for record_result in model_sim.process():
+            print record_result
+
+
 if __name__ == '__main__':
     # filename = ''
     # _, data_all = read_data(filename)
@@ -60,4 +84,4 @@ if __name__ == '__main__':
             ['2005', '["jiao","bu","lai"]', '["成龙"]', '["chenglong"]', '["China"]', '20', '["lixiang","xiangli"]', 'english', '50']]
     samples = DataFrame(data, index=['a', 'b', 'c'], columns=features[2:])
     model_sim = sim.TV_Sim(samples, features_weight)
-    model_sim.process()
+
