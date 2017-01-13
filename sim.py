@@ -62,11 +62,11 @@ class Sim(object):
                     sim_matrix[cur_index][base_index] = similar
                     sim_matrix[base_index][cur_index] = similar
                 except NameError, e:
-                    print e
+                # except Exception, e:
                     continue
         for index in self.ids:
             format_result = self._calculate_output(index, sim_matrix)
-            print index, format_result
+            yield index, format_result
 
     def _calculate_output(self, cover_id, similar_frame):
         sorted_result = similar_frame.sort_values(by=cover_id, ascending=False)[cover_id]
@@ -133,33 +133,14 @@ class Sim(object):
 
 
 class Cartoon_Sim(Sim):
-    
+    pass
+    '''
     def calculate_year_similarity(self, year_base, year_cur):
         pass
 
     def calculate_tag_similarity(self, tags_base, tags_cur):
         pass
-
-    def calculate_writer_similarity(self, writer_base, writer_cur):
-        pass
-
-    def calculate_director_similarity(self, writer_base, writer_cur):
-        pass
-
-    def calculate_country_similarity(self, writer_base, writer_cur):
-        pass
-
-    def calculate_episodes_similarity(self, writer_base, writer_cur):
-        pass
-
-    def calculate_actor_similarity(self, writer_base, writer_cur):
-        pass
-
-    def calculate_language_similarity(self, writer_base, writer_cur):
-        pass
-
-    def calculate_duration_similarity(self, writer_base, writer_cur):
-        pass
+    '''
 
 
 class Educatiion_Sim(Sim):
@@ -188,3 +169,23 @@ class TV_Sim(Sim):
 
 class Variety_Sim(Sim):
     pass
+
+
+if __name__ == '__main__':
+    weights_all = {}
+    weights_all['cartoon'] = np.array([0.3, 0.9, 0.1, 0.5, 0.7, 0.3, 0.8, 0.6, 0.3])
+    weights_all['doc'] = np.array([0.3, 0.9, 0.1, 0.5, 0.7, 0.3, 0.8, 0.6, 0.3])
+    weights_all['education'] = np.array([0.3, 0.9, 0.1, 0.5, 0.7, 0.3, 0.8, 0.6, 0.3])
+    weights_all['entertainment'] = np.array([0.3, 0.9, 0.1, 0.5, 0.7, 0.3, 0.8, 0.6, 0.3])
+    weights_all['movie'] = np.array([0.3, 0.9, 0.1, 0.5, 0.7, 0.3, 0.8, 0.6, 0.3])
+    weights_all['sports'] = np.array([0.3, 0.9, 0.1, 0.5, 0.7, 0.3, 0.8, 0.6, 0.3])
+    weights_all['tv'] = np.array([0.3, 0.9, 0.1, 0.5, 0.7, 0.3, 0.8, 0.6, 0.3])
+    weights_all['variety'] = np.array([0.3, 0.9, 0.1, 0.5, 0.7, 0.3, 0.8, 0.6, 0.3])
+    feature = ['year', 'tag', 'writer', 'director', 'country', 'episodes', 'actor', 'language', 'duration']
+    data = [['2006', '["ni","jiao","bu","lai","xx"]', '["chenglong"]', '["chenglong"]', '["China"]', '22', '["lixiang","xiangli"]', 'english', '46'],
+            ['2007', '["jiao","bu","lai"]', '["成龙"]', '["chenglong"]', '["China"]', '24', '["lixiang","xiangli"]', 'english', '80'],
+            ['2005', '["jiao","bu","lai"]', '["成龙"]', '["chenglong"]', '["China"]', '20', '["lixiang","xiangli"]', 'english', '50']]
+    samples = DataFrame(data, index=['a', 'b', 'c'], columns=feature)
+    model_sim = TV_Sim(samples, weights_all['tv'])
+    for cover_id, result in model_sim.process():
+        print cover_id, result
