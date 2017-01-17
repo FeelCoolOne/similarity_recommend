@@ -76,7 +76,15 @@ def filter_id(document):
 
 
 def filter_pay_status(document):
-    pass
+    record = document
+    vip = 0
+    if record['tencent'] == '1' and record['pp_tencent']['pay_status'].strip() in ['用券', '会员点播', '会员免费']:
+        vip = 1
+    elif record['youpeng'] == '1':
+        vip = 1
+    else:
+        vip = 0
+    return vip
 
 
 def filetr_year(document):
@@ -91,6 +99,43 @@ def fileter_tag(document):
     return tag
 
 
+def handle_all_attr(document):
+    data = {}
+    document = dict(document)
+    data['cover_id'] = filter_id(document)
+    data['model'] = document.get('model', 'empty')
+    data['alias'] = document.get('alias', 'empty')
+    data['duration'] = str(document.get('duration', -1))
+    data['enname'] = document.get('enName', 'empty')
+    data['language'] = document.get('language', 'empty')
+    data['name'] = document.get('name', 'empty')
+    # data['issue'] = document.get('issue', '0000-00-00')
+    data['director'] = str(document.get('director', 'empty').split('/'))
+    data['actor'] = str(document.get('cast', 'empty').split('/'))
+    data['grade_score'] = str(document.get('grade_score', -1))
+    data['tag'] = str(fileter_tag(document))
+    data['country'] = str(document.get('country', 'empty').split('/'))
+    # TODO data['country_group'] = document.get('country_group', '[]')
+    data['episodes'] = str(document.get('episodes', -1))
+    data['definitions'] = str(document.get('definitions', -1))
+    data['writer'] = str(document.get('writer', 'empty').split('/'))
+    data['year'] = str(filetr_year(document))
+    # 上架
+    data['enable'] = document.get('enable', '-1')
+    # 碎视频
+    data['isClip'] = document.get('isClip', '-1')
+    data['categorys'] = document.get('categorys', '')
+    data['pp_tencent'] = document.get('pp_tencent', '{}')
+    data['pp_iqiyi'] = document.get('pp_iqiyi', '{}')
+    data['pp_youpeng'] = document.get('pp_youpeng', '{}')
+    data['tencent'] = document.get('tencent', '-1')
+    data['iqiyi'] = document.get('iqiyi', '-1')
+    data['youpeng'] = document.get('youpeng', '-1')
+    data['focus'] = document.get('focus', 'empty')
+    data['vip'] = str(filter_pay_status(document))
+    return data
+
+
 # TODO
 # how to process None feature
 def format_input_record(collection, model):
@@ -102,40 +147,7 @@ def format_input_record(collection, model):
     id_stack = []
     logger.info('model {0} features: {1}'.format(model, features_handler[model]))
     for document in collection:
-        data = {}
-        document = dict(document)
-        data['cover_id'] = filter_id(document)
-        data['model'] = document.get('model', 'empty')
-        data['alias'] = document.get('alias', 'empty')
-        data['duration'] = str(document.get('duration', -1))
-        data['enname'] = document.get('enName', 'empty')
-        data['language'] = document.get('language', 'empty')
-        data['name'] = document.get('name', 'empty')
-        # data['issue'] = document.get('issue', '0000-00-00')
-        data['director'] = str(document.get('director', 'empty').split('/'))
-        data['actor'] = str(document.get('cast', 'empty').split('/'))
-        data['grade_score'] = str(document.get('grade_score', -1))
-        data['tag'] = str(fileter_tag(document))
-        data['country'] = str(document.get('country', 'empty').split('/'))
-        # TODO data['country_group'] = document.get('country_group', '[]')
-        data['episodes'] = str(document.get('episodes', -1))
-        data['definitions'] = str(document.get('definitions', -1))
-        data['writer'] = str(document.get('writer', 'empty').split('/'))
-        data['year'] = str(filetr_year(document))
-        # 上架
-        data['enable'] = document.get('enable', '-1')
-        # 碎视频
-        data['isClip'] = document.get('isClip', '-1')
-        data['categorys'] = document.get('categorys', '')
-        data['pp_tencent'] = document.get('pp_tencent', '{}')
-        data['pp_iqiyi'] = document.get('pp_iqiyi', '{}')
-        data['pp_youpeng'] = document.get('pp_youpeng', '{}')
-        data['tencent'] = document.get('tencent', '-1')
-        data['iqiyi'] = document.get('iqiyi', '-1')
-        data['youpeng'] = document.get('youpeng', '-1')
-        data['focus'] = document.get('focus', 'empty')
-        data['pay_status'] = filter_pay_status(document)
-
+        data = handle_all_attr(document)
         if data['enable'] in ['0', '-1'] or data['cover_id'] == '-1':
             continue
         record = []
