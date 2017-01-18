@@ -3,40 +3,15 @@
 # and save to local file '../data/id.dat'
 from pymongo import MongoClient
 import cPickle as pickle
+import logging
+from datetime import date, timedelta
+import ConfigParser
 from pandas import DataFrame
-import pandas as pd
+# import pandas as pd
 import numpy as np
 import sys
 reload(sys)
 sys.setdefaultencoding('utf-8')
-
-
-'''
-def init_con(host='127.0.0.1', port=50000):
-
-    con = MongoClient(host, port)
-    EPGInfo = con.EPGInfo
-    EPGInfo.authenticate(username, password, mechanism='SCRAM-SHA-1')
-    collection = EPGInfo['chiq_video_converge']
-    # document = collection.find_one({'model': 'movie'})
-    return collection
-'''
-
-def filter_id(document, condition=''):
-    ''' filter id from document
-        tencent id is priority from yp_id
-    '''
-    'filte other attribution but id'
-    record = dict(document)
-    id = ''
-    if record['tencent'] == '1':
-        id = record['pp_tencent']['tencentId']
-    elif record['youpeng'] == '1':
-        id = record['pp_youpeng']['yp_id']
-    else:
-        print 'error'
-        print record
-    return id
 
 
 class Video(object):
@@ -44,11 +19,25 @@ class Video(object):
     def __init__(self):
         self.model_features = {}
         self.features_trans = {}
+        self.logger = self.set_logger('../log')
         self.init_model_features()
         self.init_trans_features()
         self.models = ['movie', 'tv',
                        'sports', 'entertainment', 'variety',
                        'education', 'doc', 'cartoon']
+
+    def set_logger(self, path):
+        format = '''[ %(levelname)s %(asctime)s @ %(process)d] (%(filename)s:%(lineno)d) - %(message)s'''
+        curDate = date.today() - timedelta(days=0)
+        log_name = '{0}/get_mongo_{1}.log'.format(path, curDate)
+        formatter = logging.Formatter(format)
+        logger = logging.getLogger("vav_result")
+        handler = logging.FileHandler(log_name, 'a')
+        logger.setLevel(logging.INFO)
+        handler.setLevel(logging.INFO)
+        handler.setFormatter(formatter)
+        logger.addHandler(handler)
+        return logger
 
     def connect_mongodb(
             self,
@@ -176,10 +165,13 @@ class Video(object):
 
     def process(self):
         data = {}
-        # print 'get and process data'
+        self.logger.info('start process data')
         for model in self.models:
+            self.logger.info('get data in database of model : {0}'.format(model))
             documents = self._get_documents(self.collection, {'model': model}, 2)
+            self.logger.info('start handle data of model: {0}'.format(model))
             data[model] = self._process_documents(model, documents)
+            self.logger.info('format data of model {0} finished'.format(model))
         # print len(data[model])
         return data
 
@@ -193,6 +185,7 @@ class Video(object):
         id_stack = []
         for document in documents:
             data = self._handle_all_attr(document)
+            self.logger.debug('record: {0}'.format(data))
             if data['enable'] in ['0', '-1'] or data['cover_id'] == '-1':
                 continue
 
@@ -207,10 +200,12 @@ class Video(object):
                         record[k] = v
                 else:
                     record[feature] = data[feature]
+            self.logger.debug('formated data: {0}'.format(record))
             id_stack.append(data['cover_id'])
             data_stack.append(record.values())
         # columns = self._get_columns(model)
         columns = record.keys()
+        self.logger.debug('columns of model {0}: {1}'.format(model, columns))
         return DataFrame(data_stack, index=id_stack, columns=columns)
 
     def _get_columns(self, model):
@@ -236,25 +231,29 @@ class Video(object):
         return transformed
 
 
-def main():
-    host = '127.0.0.1'
-    port = 50000
-    username = 'EPGInfo'
-    password = 'EPGInfo@20150603'
-    database = 'EPGInfo'
-    collection = 'chiq_video_converge'
+def main(config_file_path):
+    cf = ConfigParser.ConfigParser()
+    cf.read(config_file_path)
+    address = cf.get('mongo', 'address')
+    port = int(cf.get('mongo', 'port'))
+    username = cf.get('mongo', 'username')
+    password = cf.get('mongo', 'password')
+    database = cf.get('mongo', 'database')
+    collection = cf.get('mongo', 'collection')
     models = ['movie', 'tv',
               'sports', 'entertainment', 'variety',
               'education', 'doc', 'cartoon']
     handler = Video()
     print 'connect mongo'
-    handler.connect_mongodb(host, port, username, password, database, collection)
+    handler.connect_mongodb(address, port, username, password, database, collection)
     print 'connect success'
     data = handler.process()
+    print 'Finished'
     return data
 
 
 if __name__ == '__main__':
-    data = main()
+    config_file = '../etc/config.ini'
+    data = main(config_file)
     with open('../data/id.dat', 'w') as f:
         pickle.dump(data, f, protocol=True)
