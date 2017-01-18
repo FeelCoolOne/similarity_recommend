@@ -3,16 +3,24 @@
 # and save to local file '../data/id.dat'
 from pymongo import MongoClient
 import cPickle as pickle
+from pandas import DataFrame
+import pandas as pd
+import numpy as np
+import sys
+reload(sys)
+sys.setdefaultencoding('utf-8')
 
 
+'''
 def init_con(host='127.0.0.1', port=50000):
+
     con = MongoClient(host, port)
     EPGInfo = con.EPGInfo
     EPGInfo.authenticate(username, password, mechanism='SCRAM-SHA-1')
     collection = EPGInfo['chiq_video_converge']
     # document = collection.find_one({'model': 'movie'})
     return collection
-
+'''
 
 def filter_id(document, condition=''):
     ''' filter id from document
@@ -31,10 +39,13 @@ def filter_id(document, condition=''):
     return id
 
 
-class video:
+class Video(object):
+
     def __init__(self):
-        self.features_handler = {}
-        self.init_feature_handler()
+        self.model_features = {}
+        self.features_trans = {}
+        self.init_model_features()
+        self.init_trans_features()
         self.models = ['movie', 'tv',
                        'sports', 'entertainment', 'variety',
                        'education', 'doc', 'cartoon']
@@ -53,18 +64,47 @@ class video:
         collection = EPGInfo[collection]
         self.collection = collection
 
-    def init_feature_handler(self):
-        self.features_handler['cartoon'] = ['year', 'tag', 'writer', 'director', 'country', 'episodes', 'actor', 'language', 'duration']
-        self.features_handler['doc'] = ['year', 'tag', 'writer', 'director', 'country', 'episodes', 'actor', 'language', 'duration']
-        self.features_handler['education'] = ['year', 'tag', 'writer', 'director', 'country', 'episodes', 'actor', 'language', 'duration']
-        self.features_handler['entertainment'] = ['year', 'tag', 'writer', 'director', 'country', 'episodes', 'actor', 'language', 'duration']
-        self.features_handler['movie'] = ['year', 'tag', 'writer', 'director', 'country', 'episodes', 'actor', 'language', 'duration']
-        self.features_handler['sports'] = ['year', 'tag', 'writer', 'director', 'country', 'episodes', 'actor', 'language', 'duration']
-        self.features_handler['tv'] = ['year', 'tag', 'writer', 'director', 'country', 'episodes', 'actor', 'language', 'duration']
-        self.features_handler['variety'] = ['year', 'tag', 'writer', 'director', 'country', 'episodes', 'actor', 'language', 'duration']
+    def init_trans_features(self):
+        '''set features that need to be transformed from list to binary like dummy_feature in sklearn'''
+        self.features_trans['cartoon'] = {'tag': 3, 'writer': 2, 'director': 2, 'actor': 4, 'country': 1}
+        self.features_trans['doc'] = {'tag': 3, 'writer': 2, 'director': 2, 'actor': 4, 'country': 1}
+        self.features_trans['education'] = {'tag': 3, 'writer': 2, 'director': 2, 'actor': 4, 'country': 1}
+        self.features_trans['entertainment'] = {'tag': 3, 'writer': 2, 'director': 2, 'actor': 4, 'country': 1}
+        self.features_trans['movie'] = {'tag': 3, 'writer': 2, 'director': 2, 'actor': 4, 'country': 1}
+        self.features_trans['sports'] = {'tag': 3, 'writer': 2, 'director': 2, 'actor': 4, 'country': 1}
+        self.features_trans['tv'] = {'tag': 4, 'writer': 1, 'director': 1, 'actor': 4, 'country': 1}
+        self.features_trans['variety'] = {'tag': 3, 'writer': 2, 'director': 2, 'actor': 4, 'country': 1}
+
+    def init_model_features(self):
+        '''default features to be handled in process'''
+        self.model_features['cartoon'] = ['year',
+                                          'tag', 'writer', 'director',
+                                          'country', 'episodes', 'actor',
+                                          'language', 'duration']
+        self.model_features['doc'] = ['year', 'tag', 'writer',
+                                      'director', 'country', 'episodes',
+                                      'actor', 'language', 'duration']
+        self.model_features['education'] = ['year', 'tag', 'writer',
+                                            'director', 'country', 'episodes',
+                                            'actor', 'language', 'duration']
+        self.model_features['entertainment'] = ['year', 'tag', 'writer',
+                                                'director', 'country', 'episodes',
+                                                'actor', 'language', 'duration']
+        self.model_features['movie'] = ['year', 'tag', 'writer',
+                                        'director', 'country', 'episodes',
+                                        'actor', 'language', 'duration']
+        self.model_features['sports'] = ['year', 'tag', 'writer',
+                                         'director', 'country', 'episodes',
+                                         'actor', 'language', 'duration']
+        self.model_features['tv'] = ['year', 'tag', 'writer',
+                                     'director', 'country', 'episodes',
+                                     'actor', 'language', 'duration']
+        self.model_features['variety'] = ['year', 'tag', 'writer',
+                                          'director', 'country', 'episodes',
+                                          'actor', 'language', 'duration']
 
     def set_feature(self, model, features):
-        self.features_handler[model] = features
+        self.model_features[model] = features
 
     def _filter_id(self, document):
         '''filte other attribution but id
@@ -134,17 +174,16 @@ class video:
         data['vip'] = str(self._filter_pay_status(document))
         return data
 
-    def process(self, collection):
+    def process(self):
         data = {}
         # print 'get and process data'
         for model in self.models:
-            data[model] = set()
-            documents = self._get_documents(collection, {'model': model}, 1)
+            documents = self._get_documents(self.collection, {'model': model}, 2)
             data[model] = self._process_documents(model, documents)
         # print len(data[model])
         return data
 
-    def get_documents(self, collection, condition, num=10):
+    def _get_documents(self, collection, condition, num=10):
         # documents = collection.find(condition).limit(num)
         documents = collection.find(condition)
         return documents
@@ -156,29 +195,66 @@ class video:
             data = self._handle_all_attr(document)
             if data['enable'] in ['0', '-1'] or data['cover_id'] == '-1':
                 continue
-            record = []
 
-            for feature in self.features_handler[model]:
-                if data[feature].strip() == '':
-                    data[feature] = 'empty'
-                record.append(data[feature])
-        id_stack.append(data['cover_id'])
-        data_stack.append(record)
-    return DataFrame(data_stack, index=id_stack, columns=features_handler[model])
+            record = {}
+            for feature in self.model_features[model]:
+                # '' : string NULL  or value == 'unkown' or by default 'empty'
+                if data[feature].strip() in ['', '未知', 'empty', 'None']:
+                    data[feature] = np.nan
+                if feature in self.features_trans[model]:
+                    feats = self._feature_transform(model, feature, data[feature])
+                    for k, v in feats.items():
+                        record[k] = v
+                else:
+                    record[feature] = data[feature]
+            id_stack.append(data['cover_id'])
+            data_stack.append(record.values())
+        # columns = self._get_columns(model)
+        columns = record.keys()
+        return DataFrame(data_stack, index=id_stack, columns=columns)
+
+    def _get_columns(self, model):
+        '''transform feature in type-list to binary'''
+        columns = []
+        for feature in self.model_features[model]:
+            if feature not in self.features_trans[model]:
+                columns.append(feature)
+            else:
+                for index in range(self.features_trans[model][feature]):
+                    columns.append(feature + str(index))
+        return columns
+
+    def _feature_transform(self, model, feature, value):
+        '''transform value of feature in list-type to binary'''
+        transformed = {}
+        value = eval(value)
+        for index in range(self.features_trans[model][feature]):
+            if index < len(value) and value[index] not in ['empty', '未知', 'None']:
+                transformed[feature + str(index)] = value[index]
+            else:
+                transformed[feature + str(index)] = np.nan
+        return transformed
 
 
 def main():
-    HOST = '192.168.1.31'
-    PORT = 50000
+    host = '127.0.0.1'
+    port = 50000
+    username = 'EPGInfo'
+    password = 'EPGInfo@20150603'
+    database = 'EPGInfo'
+    collection = 'chiq_video_converge'
     models = ['movie', 'tv',
               'sports', 'entertainment', 'variety',
               'education', 'doc', 'cartoon']
+    handler = Video()
     print 'connect mongo'
-    collection = init_con(HOST, PORT)
-
+    handler.connect_mongodb(host, port, username, password, database, collection)
+    print 'connect success'
+    data = handler.process()
+    return data
 
 
 if __name__ == '__main__':
     data = main()
-    with open('../data/id.dat', 'wb') as f:
+    with open('../data/id.dat', 'w') as f:
         pickle.dump(data, f, protocol=True)
