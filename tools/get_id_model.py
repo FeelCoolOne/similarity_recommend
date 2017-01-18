@@ -7,8 +7,9 @@ import logging
 from datetime import date, timedelta
 import ConfigParser
 from pandas import DataFrame
-# import pandas as pd
+import pandas as pd
 import numpy as np
+import matplotlib.pyplot as plt
 import sys
 reload(sys)
 sys.setdefaultencoding('utf-8')
@@ -230,6 +231,18 @@ class Video(object):
                 transformed[feature + str(index)] = np.nan
         return transformed
 
+    def dummy_process(self, dataframe, model='tv'):
+        except_features = ['duration', 'grade_score', 'year', 'episodes']
+        columns_dummy = self._get_columns(model)
+        for feature in except_features:
+            if feature in columns_dummy:
+                columns_dummy.remove(feature)
+
+        dummies = pd.get_dummies(data=dataframe, columns=columns_dummy)
+        dataframe.drop(labels=columns_dummy, axis=1, inplace=True)
+        dataframe = pd.concat([dataframe, dummies], axis=1)
+        return dataframe
+
 
 def main(config_file_path):
     cf = ConfigParser.ConfigParser()
@@ -253,7 +266,27 @@ def main(config_file_path):
 
 
 if __name__ == '__main__':
+    '''
     config_file = '../etc/config.ini'
     data = main(config_file)
-    with open('../data/id.dat', 'w') as f:
+    with open('../data/id.dat', 'wb') as f:
         pickle.dump(data, f, protocol=True)
+    '''
+    data = {}
+    with open('../data/id.dat', 'rb') as f:
+        data = pickle.load(f)
+    if len(data) == 0:
+        print 'data source error'
+        exit()
+    handler = Video()
+    dataframe = data['tv']
+    for index in dataframe.columns:
+        plt.figure(index)
+        c = dataframe[index].value_counts()
+        c.sort_values(ascending=False)[:50].plot('bar')
+    plt.show()
+    data = handler.dummy_process(dataframe)
+    print data.columns
+    with open('../data/tmp.txt', 'w') as f:
+        pickle.dump(data.columns, f)
+        pickle.dump(data[1:2], f)
