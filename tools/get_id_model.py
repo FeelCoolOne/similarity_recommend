@@ -265,6 +265,17 @@ def main(config_file_path):
     return data
 
 
+def analysis_data(data):
+    for index in dataframe.columns:
+        plt.figure(index)
+        plt.title('{0}统计分布'.format(index))
+        plt.xlabel(index)
+        plt.ylabel('num')
+        c = dataframe[index].value_counts()
+        c.sort_values(ascending=False)[:50].plot('bar')
+    plt.show()
+
+
 if __name__ == '__main__':
     '''
     config_file = '../etc/config.ini'
@@ -280,11 +291,7 @@ if __name__ == '__main__':
         exit()
     handler = Video()
     dataframe = data['tv']
-    for index in dataframe.columns:
-        plt.figure(index)
-        c = dataframe[index].value_counts()
-        c.sort_values(ascending=False)[:50].plot('bar')
-    plt.show()
+
     data = handler.dummy_process(dataframe)
     print data.columns
     with open('../data/tmp.txt', 'w') as f:
