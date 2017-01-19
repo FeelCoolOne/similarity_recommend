@@ -10,6 +10,7 @@ from pandas import DataFrame
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib
 import sys
 reload(sys)
 sys.setdefaultencoding('utf-8')
@@ -134,21 +135,28 @@ class Video(object):
         data['cover_id'] = self._filter_id(document)
         data['model'] = document.get('model', 'empty')
         data['alias'] = document.get('alias', 'empty')
-        data['duration'] = str(document.get('duration', -1))
+        # num
+        data['duration'] = document.get('duration', -1)
         data['enname'] = document.get('enName', 'empty')
-        data['language'] = document.get('language', 'empty')
-        data['name'] = document.get('name', 'empty')
+        data['language'] = str(document.get('language', 'empty').strip())
+        if data['language'].strip() in ['0', '1', '2', '3', '4', '5', '6', '7', '8', '不详']:
+            data['language'] = 'empty'
+        elif data['language'] == '美国':
+            data['language'] = '英语'
+        data['name'] = document.get('name', 'empty').strip()
         # data['issue'] = document.get('issue', '0000-00-00')
-        data['director'] = str(document.get('director', 'empty').split('/'))
+        data['director'] = str(document.get('director', 'empty').strip().split('/'))
         data['actor'] = str(document.get('cast', 'empty').split('/'))
-        data['grade_score'] = str(document.get('grade_score', -1))
+        # num
+        data['grade_score'] = document.get('grade_score', -1)
         data['tag'] = str(self._fileter_tag(document))
-        data['country'] = str(document.get('country', 'empty').split('/'))
+        data['country'] = str(document.get('country', 'empty').strip().split('/'))
         # TODO data['country_group'] = document.get('country_group', '[]')
-        data['episodes'] = str(document.get('episodes', -1))
-        data['definitions'] = str(document.get('definitions', -1))
-        data['writer'] = str(document.get('writer', 'empty').split('/'))
-        data['year'] = str(self._filetr_year(document))
+        # num
+        data['episodes'] = document.get('episodes', -1)
+        data['definitions'] = str(document.get('definitions', ''))
+        data['writer'] = str(document.get('writer', 'empty').strip().split('/'))
+        data['year'] = self._filetr_year(document)
         # 上架
         data['enable'] = document.get('enable', '-1')
         # 碎视频
@@ -160,7 +168,7 @@ class Video(object):
         data['tencent'] = document.get('tencent', '-1')
         data['iqiyi'] = document.get('iqiyi', '-1')
         data['youpeng'] = document.get('youpeng', '-1')
-        data['focus'] = document.get('focus', 'empty')
+        data['focus'] = document.get('focus', 'empty').strip()
         data['vip'] = str(self._filter_pay_status(document))
         return data
 
@@ -193,7 +201,10 @@ class Video(object):
             record = {}
             for feature in self.model_features[model]:
                 # '' : string NULL  or value == 'unkown' or by default 'empty'
-                if data[feature].strip() in ['', '未知', 'empty', 'None']:
+                if data[feature] == -1 or (isinstance(data[feature], str) is True and
+                                           data[feature].strip() in ['', '未知', 'empty', 'None', '-1', '不详']):
+                    data[feature] = np.nan
+                elif data[feature] == -1:
                     data[feature] = np.nan
                 if feature in self.features_trans[model]:
                     feats = self._feature_transform(model, feature, data[feature])
@@ -225,7 +236,7 @@ class Video(object):
         transformed = {}
         value = eval(value)
         for index in range(self.features_trans[model][feature]):
-            if index < len(value) and value[index] not in ['empty', '未知', 'None']:
+            if index < len(value) and value[index] not in ['empty', '未知', 'None', '不详']:
                 transformed[feature + str(index)] = value[index]
             else:
                 transformed[feature + str(index)] = np.nan
@@ -266,10 +277,21 @@ def main(config_file_path):
 
 
 def analysis_data(data):
+    matplotlib.rc('xtick', labelsize=16)
+    for index in range(len(data['language'])):
+        if data['language'][index] in ['0', '1', '2', '3', '4', '5', '6', '7', '8', '不详']:
+            data['language'][index] = np.nan
+    for index in range(len(data['writer0'])):
+        if data['writer0'][index] == '':
+            data['writer0'][index] = np.nan
+    for index in range(len(data['country0'])):
+        data['country0'][index] = data['country0'][index].strip()
+    dataframe = data.fillna('不详')
+    dataframe = data
     for index in dataframe.columns:
         plt.figure(index)
         plt.title('{0}统计分布'.format(index))
-        plt.xlabel(index)
+        plt.xlabel(index, fontsize=16)
         plt.ylabel('num')
         c = dataframe[index].value_counts()
         c.sort_values(ascending=False)[:50].plot('bar')
@@ -277,12 +299,12 @@ def analysis_data(data):
 
 
 if __name__ == '__main__':
-    '''
     config_file = '../etc/config.ini'
     data = main(config_file)
     with open('../data/id.dat', 'wb') as f:
         pickle.dump(data, f, protocol=True)
-    '''
+
+'''
     data = {}
     with open('../data/id.dat', 'rb') as f:
         data = pickle.load(f)
@@ -290,10 +312,11 @@ if __name__ == '__main__':
         print 'data source error'
         exit()
     handler = Video()
-    dataframe = data['tv']
-
+    dataframe = data['movie']
+    analysis_data(dataframe)
     data = handler.dummy_process(dataframe)
     print data.columns
     with open('../data/tmp.txt', 'w') as f:
         pickle.dump(data.columns, f)
         pickle.dump(data[1:2], f)
+'''
