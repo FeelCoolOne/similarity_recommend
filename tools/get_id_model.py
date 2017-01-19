@@ -126,43 +126,47 @@ class Video(object):
         return year
 
     def _filter_tag(self, document):
-        tag = document.get('tag', 'None').split('/')
+        tag = document.get('tag', 'None').strip().split('/')
         return tag
 
     def _filter_language(self, document):
-        language = document.get('language', 'empty').strip()
+        language = document.get('language', '').strip()
+        '''
         if language in ['0', '1', '2', '3', '4', '5', '6', '7', '8', '不详']:
-            language = 'empty'
+            language = ''
         elif language == '美国':
             language = '英语'
         elif language in ['国语', '华语', '普通话']:
             language = '普通话'
+        '''
         return language
 
     def _filter_country(self, document):
-        country = document.get('country', 'empty').strip().split('/')
+        country = document.get('country', '').strip().split('/')
+        '''
         for index in range(len(country)):
             if country[index].strip() == '内地':
                 country[index] = '中国内地'
             else:
                 country[index] = country[index].strip()
+        '''
         return country
 
     def _handle_all_attr(self, document):
         data = {}
         document = dict(document)
         data['cover_id'] = self._filter_id(document)
-        data['model'] = document.get('model', 'empty')
-        data['alias'] = document.get('alias', 'empty')
+        data['model'] = document.get('model', '')
+        data['alias'] = document.get('alias', '')
         # num
         data['duration'] = document.get('duration', -1)
-        data['enname'] = document.get('enName', 'empty')
+        data['enname'] = document.get('enName', '')
         data['language'] = self._filter_language(document)
 
-        data['name'] = document.get('name', 'empty').strip()
+        data['name'] = document.get('name', '').strip()
         # data['issue'] = document.get('issue', '0000-00-00')
-        data['director'] = str(document.get('director', 'empty').strip().split('/'))
-        data['actor'] = str(document.get('cast', 'empty').split('/'))
+        data['director'] = str(document.get('director', '').strip().split('/'))
+        data['actor'] = str(document.get('cast', '').split('/'))
         # num
         data['grade_score'] = document.get('grade_score', -1)
         data['tag'] = str(self._filter_tag(document))
@@ -171,7 +175,7 @@ class Video(object):
         # num
         data['episodes'] = document.get('episodes', -1)
         data['definition'] = str(document.get('definition', -1))
-        data['writer'] = str(document.get('writer', 'empty').strip().split('/'))
+        data['writer'] = str(document.get('writer', '').strip().split('/'))
         data['year'] = self._filetr_year(document)
         # 上架
         data['enable'] = document.get('enable', '-1')
@@ -216,12 +220,9 @@ class Video(object):
 
             record = {}
             for feature in self.model_features[model]:
-                # '' : string NULL  or value == 'unkown' or by default 'empty'
                 if data[feature] == -1 or (isinstance(data[feature], str) is True and
-                                           data[feature].strip() in ['', '未知', 'empty', 'None', '-1', '不详']):
-                    data[feature] = np.nan
-                elif data[feature] == -1:
-                    data[feature] = np.nan
+                                           data[feature].strip() in ['未知', 'empty', 'None', '-1', '不详']):
+                    data[feature] = ''
                 if feature in self.features_trans[model]:
                     feats = self._feature_transform(model, feature, data[feature])
                     for k, v in feats.items():
@@ -235,6 +236,23 @@ class Video(object):
         columns = record.keys()
         self.logger.debug('columns of model {0}: {1}'.format(model, columns))
         return DataFrame(data_stack, index=id_stack, columns=columns)
+
+    def data_clean(self, data):
+        num = 3
+        data['country'] = data['country'].str.replace(r' ', '')
+        data['country'] = data['country'].str.replace(r'中国内地', '内地')
+        country_expand = data['country'].str.split('/', expand=True, n=num).iloc[:, :num]
+        # check
+        country_expand[country_expand is None] = np.nan
+        data.drop(labels='country', axis=1, inplace=True)
+        data = pd.concat([data, country_expand], axis=1)
+        data['language'][data['language'].isin(['国语', '华语'])] = '普通话'
+        data['language'][data['language' == '美国']] = '英语'
+        tmp = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '不详']
+        data['language'][data['language'].isin(tmp)] = ''
+
+        data[data == ''] = np.nan
+        return data
 
     def _get_columns(self, model):
         '''transform feature in type-list to binary'''
