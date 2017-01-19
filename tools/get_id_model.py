@@ -120,14 +120,33 @@ class Video(object):
         return vip
 
     def _filetr_year(self, document):
-        year = document.get('year', 'None')
+        year = document.get('issue', 'None').split('-')[0]
         if year == 'None':
-            year = document.get('issue', 'None').split('-')[0]
+            year = document.get('year', 'None')
         return year
 
-    def _fileter_tag(self, document):
+    def _filter_tag(self, document):
         tag = document.get('tag', 'None').split('/')
         return tag
+
+    def _filter_language(self, document):
+        language = document.get('language', 'empty').strip()
+        if language in ['0', '1', '2', '3', '4', '5', '6', '7', '8', '不详']:
+            language = 'empty'
+        elif language == '美国':
+            language = '英语'
+        elif language in ['国语', '华语', '普通话']:
+            language = '普通话'
+        return language
+
+    def _filter_country(self, document):
+        country = document.get('country', 'empty').strip().split('/')
+        for index in range(len(country)):
+            if country[index].strip() == '内地':
+                country[index] = '中国内地'
+            else:
+                country[index] = country[index].strip()
+        return country
 
     def _handle_all_attr(self, document):
         data = {}
@@ -138,23 +157,20 @@ class Video(object):
         # num
         data['duration'] = document.get('duration', -1)
         data['enname'] = document.get('enName', 'empty')
-        data['language'] = str(document.get('language', 'empty').strip())
-        if data['language'].strip() in ['0', '1', '2', '3', '4', '5', '6', '7', '8', '不详']:
-            data['language'] = 'empty'
-        elif data['language'] == '美国':
-            data['language'] = '英语'
+        data['language'] = self._filter_language(document)
+
         data['name'] = document.get('name', 'empty').strip()
         # data['issue'] = document.get('issue', '0000-00-00')
         data['director'] = str(document.get('director', 'empty').strip().split('/'))
         data['actor'] = str(document.get('cast', 'empty').split('/'))
         # num
         data['grade_score'] = document.get('grade_score', -1)
-        data['tag'] = str(self._fileter_tag(document))
-        data['country'] = str(document.get('country', 'empty').strip().split('/'))
+        data['tag'] = str(self._filter_tag(document))
+        data['country'] = str(self._filter_country(document))
         # TODO data['country_group'] = document.get('country_group', '[]')
         # num
         data['episodes'] = document.get('episodes', -1)
-        data['definitions'] = str(document.get('definitions', ''))
+        data['definition'] = str(document.get('definition', -1))
         data['writer'] = str(document.get('writer', 'empty').strip().split('/'))
         data['year'] = self._filetr_year(document)
         # 上架
@@ -236,8 +252,8 @@ class Video(object):
         transformed = {}
         value = eval(value)
         for index in range(self.features_trans[model][feature]):
-            if index < len(value) and value[index] not in ['empty', '未知', 'None', '不详']:
-                transformed[feature + str(index)] = value[index]
+            if index < len(value) and value[index].strip() not in ['', 'empty', '未知', 'None', '不详']:
+                transformed[feature + str(index)] = value[index].strip()
             else:
                 transformed[feature + str(index)] = np.nan
         return transformed
@@ -281,11 +297,13 @@ def analysis_data(data):
     for index in range(len(data['language'])):
         if data['language'][index] in ['0', '1', '2', '3', '4', '5', '6', '7', '8', '不详']:
             data['language'][index] = np.nan
+    '''
     for index in range(len(data['writer0'])):
         if data['writer0'][index] == '':
             data['writer0'][index] = np.nan
     for index in range(len(data['country0'])):
         data['country0'][index] = data['country0'][index].strip()
+    '''
     dataframe = data.fillna('不详')
     dataframe = data
     for index in dataframe.columns:
@@ -299,12 +317,13 @@ def analysis_data(data):
 
 
 if __name__ == '__main__':
+    '''
     config_file = '../etc/config.ini'
     data = main(config_file)
     with open('../data/id.dat', 'wb') as f:
         pickle.dump(data, f, protocol=True)
+    '''
 
-'''
     data = {}
     with open('../data/id.dat', 'rb') as f:
         data = pickle.load(f)
@@ -314,6 +333,7 @@ if __name__ == '__main__':
     handler = Video()
     dataframe = data['movie']
     analysis_data(dataframe)
+'''
     data = handler.dummy_process(dataframe)
     print data.columns
     with open('../data/tmp.txt', 'w') as f:
