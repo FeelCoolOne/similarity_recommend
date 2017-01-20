@@ -119,14 +119,20 @@ class Video(object):
             vip = 0
         return vip
 
-    def _filetr_year(self, document):
-        year = document.get('issue', 'None').split('-')[0]
-        if year == 'None':
-            year = document.get('year', 'None')
+    def _filtr_year(self, document):
+        year = document.get('year', 'None')
+        if year == 'None' or year - 0 < 1500:
+            try:
+                year = int(document.get('issue', 'None').split('-')[0])
+            except ValueError, e:
+                print 'ValueError {0}'.format(e)
+                year = None
+        if year is not None and year < 1500:
+            year = None
         return year
 
     def _filter_tag(self, document):
-        tag = document.get('tag', 'None').strip().split('/')
+        tag = document.get('tag', 'None').strip()
         return tag
 
     def _filter_language(self, document):
@@ -142,7 +148,7 @@ class Video(object):
         return language
 
     def _filter_country(self, document):
-        country = document.get('country', '').strip().split('/')
+        country = document.get('country', '').strip()
         '''
         for index in range(len(country)):
             if country[index].strip() == '内地':
@@ -154,19 +160,20 @@ class Video(object):
 
     def _handle_all_attr(self, document):
         data = {}
+        none_label = ''
         document = dict(document)
         data['cover_id'] = self._filter_id(document)
-        data['model'] = document.get('model', '')
-        data['alias'] = document.get('alias', '')
+        data['model'] = document.get('model', none_label)
+        data['alias'] = document.get('alias', none_label)
         # num
         data['duration'] = document.get('duration', -1)
-        data['enname'] = document.get('enName', '')
+        data['enname'] = document.get('enName', none_label)
         data['language'] = self._filter_language(document)
 
-        data['name'] = document.get('name', '').strip()
+        data['name'] = document.get('name', none_label).strip()
         # data['issue'] = document.get('issue', '0000-00-00')
-        data['director'] = str(document.get('director', '').strip().split('/'))
-        data['actor'] = str(document.get('cast', '').split('/'))
+        data['director'] = str(document.get('director', none_label).strip())
+        data['actor'] = str(document.get('cast', none_label))
         # num
         data['grade_score'] = document.get('grade_score', -1)
         data['tag'] = str(self._filter_tag(document))
@@ -175,13 +182,13 @@ class Video(object):
         # num
         data['episodes'] = document.get('episodes', -1)
         data['definition'] = str(document.get('definition', -1))
-        data['writer'] = str(document.get('writer', '').strip().split('/'))
-        data['year'] = self._filetr_year(document)
+        data['writer'] = str(document.get('writer', none_label).strip())
+        data['year'] = self._filtr_year(document)
         # 上架
         data['enable'] = document.get('enable', '-1')
         # 碎视频
         data['isClip'] = document.get('isClip', '-1')
-        data['categorys'] = document.get('categorys', '')
+        data['categorys'] = document.get('categorys', none_label)
         data['pp_tencent'] = document.get('pp_tencent', '{}')
         data['pp_iqiyi'] = document.get('pp_iqiyi', '{}')
         data['pp_youpeng'] = document.get('pp_youpeng', '{}')
@@ -197,11 +204,10 @@ class Video(object):
         self.logger.info('start process data')
         for model in self.models:
             self.logger.info('get data in database of model : {0}'.format(model))
-            documents = self._get_documents(self.collection, {'model': model}, 2)
+            documents = self._get_documents(self.collection, {'model': model}, 100)
             self.logger.info('start handle data of model: {0}'.format(model))
             data[model] = self._process_documents(model, documents)
             self.logger.info('format data of model {0} finished'.format(model))
-        # print len(data[model])
         return data
 
     def _get_documents(self, collection, condition, num=10):
@@ -217,42 +223,63 @@ class Video(object):
             self.logger.debug('record: {0}'.format(data))
             if data['enable'] in ['0', '-1'] or data['cover_id'] == '-1':
                 continue
-
-            record = {}
+            record = []
             for feature in self.model_features[model]:
                 if data[feature] == -1 or (isinstance(data[feature], str) is True and
                                            data[feature].strip() in ['未知', 'empty', 'None', '-1', '不详']):
-                    data[feature] = ''
-                if feature in self.features_trans[model]:
-                    feats = self._feature_transform(model, feature, data[feature])
-                    for k, v in feats.items():
-                        record[k] = v
-                else:
-                    record[feature] = data[feature]
-            self.logger.debug('formated data: {0}'.format(record))
+                    data[feature] = None
+                record.append(data[feature])
             id_stack.append(data['cover_id'])
-            data_stack.append(record.values())
-        # columns = self._get_columns(model)
-        columns = record.keys()
+            data_stack.append(record)
+
+        columns = self.model_features[model]
         self.logger.debug('columns of model {0}: {1}'.format(model, columns))
-        return DataFrame(data_stack, index=id_stack, columns=columns)
-
-    def data_clean(self, data):
-        num = 3
-        data['country'] = data['country'].str.replace(r' ', '')
-        data['country'] = data['country'].str.replace(r'中国内地', '内地')
-        country_expand = data['country'].str.split('/', expand=True, n=num).iloc[:, :num]
-        # check
-        country_expand[country_expand is None] = np.nan
-        data.drop(labels='country', axis=1, inplace=True)
-        data = pd.concat([data, country_expand], axis=1)
-        data['language'][data['language'].isin(['国语', '华语'])] = '普通话'
-        data['language'][data['language' == '美国']] = '英语'
-        tmp = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '不详']
-        data['language'][data['language'].isin(tmp)] = ''
-
-        data[data == ''] = np.nan
+        data = DataFrame(data_stack, index=id_stack, columns=columns)
+        data = self.clean_data(data)
+        data = self._expand_all_columns(data, model)
+        data[data.isnull()] = np.nan
         return data
+
+    def clean_data(self, data):
+        # if feature in features_trans, string null stand for missing value
+        # else None will
+        data['country'] = data['country'].str.replace(r' ', '')
+        data['country'] = data['country'].str.replace(r'不详', '')
+        data['country'] = data['country'].str.replace(r'中国内地', '内地')
+        data['country'] = data['country'].str.replace(r'中国香港', '香港')
+        data['country'] = data['country'].str.replace(r'内地剧', '内地')
+        data['language'] = data['language'].str.replace(r' ', '')
+        data = self._value_fix(data, 'language', ['国语', '华语'], '普通话')
+        data = self._value_fix(data, 'language', ['美国'], '英语')
+        data = self._value_fix(data, 'language', [''], None)
+        tmp = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '不详']
+        data = self._value_fix(data, 'language', tmp, '')
+        return data
+
+    def _value_fix(self, data, feature, fault_value, correct_value):
+        mask = data.isin({feature: fault_value})
+        data = data.where(~mask, other=correct_value)
+        return data
+
+    def _expand_all_columns(self, data, model):
+        for column in self.features_trans[model]:
+            size = self.features_trans[model][column]
+            data = self._expand_single_column(data, column, size)
+        return data
+
+    def _expand_single_column(self, data, column_name, min_size):
+        expand = data[column_name].str.split('/', expand=True, n=min_size).iloc[:, :min_size]
+        expand.columns = self._expand_column_names(column_name, len(expand.columns))
+        expand[expand == ''] = None
+        data.drop(labels=column_name, axis=1, inplace=True)
+        data = pd.concat([data, expand], axis=1)
+        return data
+
+    def _expand_column_names(self, column_name, length):
+        columns = []
+        for index in range(length):
+            columns.append(column_name + str(index))
+        return columns
 
     def _get_columns(self, model):
         '''transform feature in type-list to binary'''
@@ -306,22 +333,15 @@ def main(config_file_path):
     handler.connect_mongodb(address, port, username, password, database, collection)
     print 'connect success'
     data = handler.process()
+    print 'save data to excel'
+    for model, values in data.items():
+        values.to_excel('../data/{0}_data.xlsx'.format(model))
     print 'Finished'
     return data
 
 
 def analysis_data(data):
     matplotlib.rc('xtick', labelsize=16)
-    for index in range(len(data['language'])):
-        if data['language'][index] in ['0', '1', '2', '3', '4', '5', '6', '7', '8', '不详']:
-            data['language'][index] = np.nan
-    '''
-    for index in range(len(data['writer0'])):
-        if data['writer0'][index] == '':
-            data['writer0'][index] = np.nan
-    for index in range(len(data['country0'])):
-        data['country0'][index] = data['country0'][index].strip()
-    '''
     dataframe = data.fillna('不详')
     dataframe = data
     for index in dataframe.columns:
@@ -335,13 +355,12 @@ def analysis_data(data):
 
 
 if __name__ == '__main__':
-    '''
     config_file = '../etc/config.ini'
     data = main(config_file)
     with open('../data/id.dat', 'wb') as f:
         pickle.dump(data, f, protocol=True)
-    '''
 
+'''
     data = {}
     with open('../data/id.dat', 'rb') as f:
         data = pickle.load(f)
@@ -350,7 +369,9 @@ if __name__ == '__main__':
         exit()
     handler = Video()
     dataframe = data['movie']
+    dataframe = handler.clean_data(dataframe)
     analysis_data(dataframe)
+'''
 '''
     data = handler.dummy_process(dataframe)
     print data.columns
