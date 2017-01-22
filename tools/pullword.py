@@ -80,4 +80,5 @@ if __name__ == '__main__':
      '''
     s2 = u'''是一种用于信息检索与数据挖掘的常用加权技术.简介TF-IDF是一种统计方法，用以评估一字词对于一个文件集或一个语料库中'''
     data, features = extract_text_feature([s1, s2])
+    print features
     print data.toarray()

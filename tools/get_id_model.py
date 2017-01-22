@@ -68,31 +68,30 @@ class Video(object):
 
     def init_model_features(self):
         '''default features to be handled in process'''
-        self.model_features['cartoon'] = ['year',
-                                          'tag', 'writer', 'director',
-                                          'country', 'episodes', 'actor',
-                                          'language', 'duration']
+        self.model_features['cartoon'] = ['year', 'tag', 'writer',
+                                          'director', 'country', 'episodes',
+                                          'actor', 'language', 'duration', 'vip']
         self.model_features['doc'] = ['year', 'tag', 'writer',
                                       'director', 'country', 'episodes',
-                                      'actor', 'language', 'duration']
+                                      'actor', 'language', 'duration', 'vip']
         self.model_features['education'] = ['year', 'tag', 'writer',
                                             'director', 'country', 'episodes',
-                                            'actor', 'language', 'duration']
+                                            'actor', 'language', 'duration', 'vip']
         self.model_features['entertainment'] = ['year', 'tag', 'writer',
                                                 'director', 'country', 'episodes',
-                                                'actor', 'language', 'duration']
+                                                'actor', 'language', 'duration', 'vip']
         self.model_features['movie'] = ['year', 'tag', 'writer',
                                         'director', 'country', 'episodes',
-                                        'actor', 'language', 'duration']
+                                        'actor', 'language', 'duration', 'vip']
         self.model_features['sports'] = ['year', 'tag', 'writer',
                                          'director', 'country', 'episodes',
-                                         'actor', 'language', 'duration']
+                                         'actor', 'language', 'duration', 'vip']
         self.model_features['tv'] = ['year', 'tag', 'writer',
                                      'director', 'country', 'episodes',
-                                     'actor', 'language', 'duration']
+                                     'actor', 'language', 'duration', 'vip']
         self.model_features['variety'] = ['year', 'tag', 'writer',
                                           'director', 'country', 'episodes',
-                                          'actor', 'language', 'duration']
+                                          'actor', 'language', 'duration', 'vip']
 
     def set_feature(self, model, features):
         self.model_features[model] = features
@@ -132,11 +131,11 @@ class Video(object):
         return year
 
     def _filter_tag(self, document):
-        tag = document.get('tag', 'None').strip()
+        tag = document.get('tag', '').replace(r' ', '')
         return tag
 
     def _filter_language(self, document):
-        language = document.get('language', '').strip()
+        language = document.get('language', '').replace(r' ', '')
         '''
         if language in ['0', '1', '2', '3', '4', '5', '6', '7', '8', '不详']:
             language = ''
@@ -148,7 +147,7 @@ class Video(object):
         return language
 
     def _filter_country(self, document):
-        country = document.get('country', '').strip()
+        country = document.get('country', '').replace(r' ', '')
         '''
         for index in range(len(country)):
             if country[index].strip() == '内地':
@@ -173,7 +172,7 @@ class Video(object):
         data['name'] = document.get('name', none_label).strip()
         # data['issue'] = document.get('issue', '0000-00-00')
         data['director'] = str(document.get('director', none_label).strip())
-        data['actor'] = str(document.get('cast', none_label))
+        data['actor'] = str(document.get('cast', none_label)).strip()
         # num
         data['grade_score'] = document.get('grade_score', -1)
         data['tag'] = str(self._filter_tag(document))
@@ -195,7 +194,7 @@ class Video(object):
         data['tencent'] = document.get('tencent', '-1')
         data['iqiyi'] = document.get('iqiyi', '-1')
         data['youpeng'] = document.get('youpeng', '-1')
-        data['focus'] = document.get('focus', 'empty').strip()
+        data['focus'] = document.get('focus', '').strip()
         data['vip'] = str(self._filter_pay_status(document))
         return data
 
@@ -211,8 +210,8 @@ class Video(object):
         return data
 
     def _get_documents(self, collection, condition, num=10):
-        # documents = collection.find(condition).limit(num)
-        documents = collection.find(condition)
+        documents = collection.find(condition).limit(num)
+        # documents = collection.find(condition)
         return documents
 
     def _process_documents(self, model, documents):
@@ -225,9 +224,11 @@ class Video(object):
                 continue
             record = []
             for feature in self.model_features[model]:
-                if data[feature] == -1 or (isinstance(data[feature], str) is True and
-                                           data[feature].strip() in ['未知', 'empty', 'None', '-1', '不详']):
+                # check '0'
+                if data[feature] == -1 or (isinstance(data[feature], (str, unicode)) and
+                                           data[feature].strip() in [u'英语', u'未知', 'None', u'不详']):
                     data[feature] = None
+                # if feature == 'language': print data[feature].strip()
                 record.append(data[feature])
             id_stack.append(data['cover_id'])
             data_stack.append(record)
@@ -252,8 +253,8 @@ class Video(object):
         data = self._value_fix(data, 'language', ['国语', '华语'], '普通话')
         data = self._value_fix(data, 'language', ['美国'], '英语')
         data = self._value_fix(data, 'language', [''], None)
-        tmp = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '不详']
-        data = self._value_fix(data, 'language', tmp, '')
+        tmp = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '38', '不详']
+        data = self._value_fix(data, 'language', tmp, None)
         return data
 
     def _value_fix(self, data, feature, fault_value, correct_value):
@@ -310,7 +311,7 @@ class Video(object):
             if feature in columns_dummy:
                 columns_dummy.remove(feature)
 
-        dummies = pd.get_dummies(data=dataframe, columns=columns_dummy)
+        dummies = pd.get_dummies(data=dataframe, columns=columns_dummy, dummy_na=True)
         dataframe.drop(labels=columns_dummy, axis=1, inplace=True)
         dataframe = pd.concat([dataframe, dummies], axis=1)
         return dataframe
@@ -332,7 +333,9 @@ def main(config_file_path):
     print 'connect mongo'
     handler.connect_mongodb(address, port, username, password, database, collection)
     print 'connect success'
+    print 'start get and process data'
     data = handler.process()
+    print 'process end'
     print 'save data to excel'
     for model, values in data.items():
         values.to_excel('../data/{0}_data.xlsx'.format(model))
