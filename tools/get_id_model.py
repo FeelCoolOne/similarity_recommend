@@ -312,9 +312,9 @@ class Video(object):
                 columns_dummy.remove(feature)
 
         dummies = pd.get_dummies(data=dataframe, columns=columns_dummy, dummy_na=True)
-        dataframe.drop(labels=columns_dummy, axis=1, inplace=True)
-        dataframe = pd.concat([dataframe, dummies], axis=1)
-        return dataframe
+        # dataframe.drop(labels=columns_dummy, axis=1, inplace=True)
+        # dataframe = pd.concat([dataframe, dummies], axis=1)
+        return dummies
 
 
 def main(config_file_path):
