@@ -2,15 +2,13 @@
 # get data id group by model
 # and save to local file '../data/id.dat'
 from pymongo import MongoClient
-import cPickle as pickle
 import logging
 from datetime import date, timedelta
 import ConfigParser
 from pandas import DataFrame
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
-import matplotlib
+import pullword
 import sys
 reload(sys)
 sys.setdefaultencoding('utf-8')
@@ -136,25 +134,10 @@ class Video(object):
 
     def _filter_language(self, document):
         language = document.get('language', '').replace(r' ', '')
-        '''
-        if language in ['0', '1', '2', '3', '4', '5', '6', '7', '8', '不详']:
-            language = ''
-        elif language == '美国':
-            language = '英语'
-        elif language in ['国语', '华语', '普通话']:
-            language = '普通话'
-        '''
         return language
 
     def _filter_country(self, document):
         country = document.get('country', '').replace(r' ', '')
-        '''
-        for index in range(len(country)):
-            if country[index].strip() == '内地':
-                country[index] = '中国内地'
-            else:
-                country[index] = country[index].strip()
-        '''
         return country
 
     def _handle_all_attr(self, document):
@@ -255,6 +238,8 @@ class Video(object):
         data = self._value_fix(data, 'language', [''], None)
         tmp = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '38', '不详']
         data = self._value_fix(data, 'language', tmp, None)
+        data = self._value_fix(data, 'tag', ['0'], '')
+        data = self._value_fix(data, 'director', ['0'], '')
         return data
 
     def _value_fix(self, data, feature, fault_value, correct_value):
@@ -305,7 +290,7 @@ class Video(object):
         return transformed
 
     def dummy_process(self, dataframe, model='tv'):
-        except_features = ['duration', 'grade_score', 'year', 'episodes']
+        except_features = ['duration', 'grade_score', 'year', 'episodes', 'vip']
         columns_dummy = self._get_columns(model)
         for feature in except_features:
             if feature in columns_dummy:
@@ -315,6 +300,10 @@ class Video(object):
         # dataframe.drop(labels=columns_dummy, axis=1, inplace=True)
         # dataframe = pd.concat([dataframe, dummies], axis=1)
         return dummies
+
+    def text_feature(self, data_series):
+        data, feature_name = pullword.extract_text_feature(data_series)
+        return pd.DataFrame(data.toarray(), feature_name)
 
 
 def main(config_file_path):
@@ -336,34 +325,23 @@ def main(config_file_path):
     print 'start get and process data'
     data = handler.process()
     print 'process end'
+    '''
     print 'save data to excel'
     for model, values in data.items():
         values.to_excel('../data/{0}_data.xlsx'.format(model))
+    '''
     print 'Finished'
     return data
 
 
-def analysis_data(data):
-    matplotlib.rc('xtick', labelsize=16)
-    dataframe = data.fillna('不详')
-    dataframe = data
-    for index in dataframe.columns:
-        plt.figure(index)
-        plt.title('{0}统计分布'.format(index))
-        plt.xlabel(index, fontsize=16)
-        plt.ylabel('num')
-        c = dataframe[index].value_counts()
-        c.sort_values(ascending=False)[:50].plot('bar')
-    plt.show()
-
-
 if __name__ == '__main__':
+    '''
     config_file = '../etc/config.ini'
     data = main(config_file)
     with open('../data/id.dat', 'wb') as f:
         pickle.dump(data, f, protocol=True)
-
-'''
+    '''
+    import cPickle as pickle
     data = {}
     with open('../data/id.dat', 'rb') as f:
         data = pickle.load(f)
@@ -371,14 +349,9 @@ if __name__ == '__main__':
         print 'data source error'
         exit()
     handler = Video()
-    dataframe = data['movie']
-    dataframe = handler.clean_data(dataframe)
-    analysis_data(dataframe)
-'''
-'''
+    dataframe = data['tv']
     data = handler.dummy_process(dataframe)
     print data.columns
     with open('../data/tmp.txt', 'w') as f:
         pickle.dump(data.columns, f)
         pickle.dump(data[1:2], f)
-'''

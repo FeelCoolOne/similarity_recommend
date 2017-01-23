@@ -62,7 +62,7 @@ def extract_text_feature(dataset, threshold=0.9, maxnum=3):
     features : list
     '''
     data_list = []
-    if not isinstance(dataset, list):
+    if not isinstance(dataset, (list, Series)):
         raise TypeError('data must be list')
     for document in dataset:
         data_list.append(' '.join(pullword(document, threshold=threshold, num=maxnum)))
