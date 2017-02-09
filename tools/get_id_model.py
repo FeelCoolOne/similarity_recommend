@@ -6,6 +6,7 @@ import logging
 from datetime import date, timedelta
 import ConfigParser
 from pandas import DataFrame
+from sklearn.preprocessing import MultiLabelBinarizer
 import pandas as pd
 import numpy as np
 import pullword
@@ -55,39 +56,39 @@ class Video(object):
 
     def init_trans_features(self):
         '''set features that need to be transformed from list to binary like dummy_feature in sklearn'''
-        self.features_trans['cartoon'] = {'tag': 3, 'writer': 2, 'director': 2, 'actor': 4, 'country': 1}
-        self.features_trans['doc'] = {'tag': 3, 'writer': 2, 'director': 2, 'actor': 4, 'country': 1}
-        self.features_trans['education'] = {'tag': 3, 'writer': 2, 'director': 2, 'actor': 4, 'country': 1}
-        self.features_trans['entertainment'] = {'tag': 3, 'writer': 2, 'director': 2, 'actor': 4, 'country': 1}
-        self.features_trans['movie'] = {'tag': 3, 'writer': 2, 'director': 2, 'actor': 4, 'country': 1}
-        self.features_trans['sports'] = {'tag': 3, 'writer': 2, 'director': 2, 'actor': 4, 'country': 1}
-        self.features_trans['tv'] = {'tag': 4, 'writer': 1, 'director': 1, 'actor': 4, 'country': 1}
-        self.features_trans['variety'] = {'tag': 3, 'writer': 2, 'director': 2, 'actor': 4, 'country': 1}
+        self.features_trans['cartoon'] = {'tag': 3, 'writer': 1, 'director': 1, 'actor': 2, 'country': 1, 'language': 1}
+        self.features_trans['doc'] = {'tag': 3, 'writer': 1, 'director': 1, 'actor': 2, 'country': 1, 'language': 1}
+        self.features_trans['education'] = {'tag': 3, 'writer': 1, 'director': 1, 'actor': 2, 'country': 1, 'language': 1}
+        self.features_trans['entertainment'] = {'tag': 3, 'writer': 1, 'director': 1, 'actor': 2, 'country': 1, 'language': 1}
+        self.features_trans['movie'] = {'tag': 4, 'writer': 1, 'director': 1, 'actor': 2, 'country': 1, 'language': 1}
+        self.features_trans['sports'] = {'tag': 3, 'writer': 1, 'director': 1, 'actor': 2, 'country': 1, 'language': 1}
+        self.features_trans['tv'] = {'tag': 4, 'writer': 1, 'director': 1, 'actor': 2, 'country': 1, 'language': 1}
+        self.features_trans['variety'] = {'tag': 3, 'writer': 1, 'director': 1, 'actor': 2, 'country': 1, 'language': 1}
 
     def init_model_features(self):
         '''default features to be handled in process'''
-        self.model_features['cartoon'] = ['year', 'tag', 'writer',
+        self.model_features['cartoon'] = ['grade_score', 'year', 'tag', 'writer',
                                           'director', 'country', 'episodes',
                                           'actor', 'language', 'duration', 'vip']
-        self.model_features['doc'] = ['year', 'tag', 'writer',
+        self.model_features['doc'] = ['grade_score', 'year', 'tag', 'writer',
                                       'director', 'country', 'episodes',
                                       'actor', 'language', 'duration', 'vip']
-        self.model_features['education'] = ['year', 'tag', 'writer',
+        self.model_features['education'] = ['grade_score', 'year', 'tag', 'writer',
                                             'director', 'country', 'episodes',
                                             'actor', 'language', 'duration', 'vip']
-        self.model_features['entertainment'] = ['year', 'tag', 'writer',
+        self.model_features['entertainment'] = ['grade_score', 'year', 'tag', 'writer',
                                                 'director', 'country', 'episodes',
                                                 'actor', 'language', 'duration', 'vip']
-        self.model_features['movie'] = ['year', 'tag', 'writer',
+        self.model_features['movie'] = ['grade_score', 'year', 'tag', 'writer',
                                         'director', 'country', 'episodes',
                                         'actor', 'language', 'duration', 'vip']
-        self.model_features['sports'] = ['year', 'tag', 'writer',
+        self.model_features['sports'] = ['grade_score', 'year', 'tag', 'writer',
                                          'director', 'country', 'episodes',
                                          'actor', 'language', 'duration', 'vip']
-        self.model_features['tv'] = ['year', 'tag', 'writer',
+        self.model_features['tv'] = ['grade_score', 'year', 'tag', 'writer',
                                      'director', 'country', 'episodes',
                                      'actor', 'language', 'duration', 'vip']
-        self.model_features['variety'] = ['year', 'tag', 'writer',
+        self.model_features['variety'] = ['grade_score', 'year', 'tag', 'writer',
                                           'director', 'country', 'episodes',
                                           'actor', 'language', 'duration', 'vip']
 
@@ -116,16 +117,20 @@ class Video(object):
             vip = 0
         return vip
 
-    def _filtr_year(self, document):
+    def _filter_year(self, document):
         year = document.get('year', 'None')
-        if year == 'None' or year - 0 < 1500:
-            try:
+        if isinstance(year, str):
+            year = year[:4]
+        try:
+            if year == 'None' or year == u'未知' or int(year) - 0 < 1500:
                 year = int(document.get('issue', 'None').split('-')[0])
-            except ValueError, e:
-                print 'ValueError {0}'.format(e)
-                year = None
-        if year is not None and year < 1500:
+        except ValueError, e:
+            print 'ValueError {0}'.format(e)
             year = None
+        if year is not None and int(year) < 1500:
+            year = None
+        elif year is not None:
+            year = int(year)
         return year
 
     def _filter_tag(self, document):
@@ -133,7 +138,7 @@ class Video(object):
         return tag
 
     def _filter_language(self, document):
-        language = document.get('language', '').replace(r' ', '')
+        language = document.get('language', '').encode('utf-8').replace(r' ', '')
         return language
 
     def _filter_country(self, document):
@@ -155,9 +160,9 @@ class Video(object):
         data['name'] = document.get('name', none_label).strip()
         # data['issue'] = document.get('issue', '0000-00-00')
         data['director'] = str(document.get('director', none_label).strip())
-        data['actor'] = str(document.get('cast', none_label)).strip()
+        data['actor'] = str(document.get('cast', none_label)).replace(r' ', '')
         # num
-        data['grade_score'] = document.get('grade_score', -1)
+        data['grade_score'] = document.get('grade_score', 0)
         data['tag'] = str(self._filter_tag(document))
         data['country'] = str(self._filter_country(document))
         # TODO data['country_group'] = document.get('country_group', '[]')
@@ -165,7 +170,7 @@ class Video(object):
         data['episodes'] = document.get('episodes', -1)
         data['definition'] = str(document.get('definition', -1))
         data['writer'] = str(document.get('writer', none_label).strip())
-        data['year'] = self._filtr_year(document)
+        data['year'] = self._filter_year(document)
         # 上架
         data['enable'] = document.get('enable', '-1')
         # 碎视频
@@ -185,6 +190,7 @@ class Video(object):
         data = {}
         self.logger.info('start process data')
         for model in self.models:
+            # if model in ['tv', 'movie']: continue
             self.logger.info('get data in database of model : {0}'.format(model))
             documents = self._get_documents(self.collection, {'model': model}, 100)
             self.logger.info('start handle data of model: {0}'.format(model))
@@ -209,8 +215,8 @@ class Video(object):
             for feature in self.model_features[model]:
                 # check '0'
                 if data[feature] == -1 or (isinstance(data[feature], (str, unicode)) and
-                                           data[feature].strip() in [u'英语', u'未知', 'None', u'不详']):
-                    data[feature] = None
+                                           data[feature].strip() in ['未知', 'None', '不详']):
+                    data[feature] = np.nan
                 # if feature == 'language': print data[feature].strip()
                 record.append(data[feature])
             id_stack.append(data['cover_id'])
@@ -226,19 +232,21 @@ class Video(object):
 
     def clean_data(self, data):
         # if feature in features_trans, string null stand for missing value
-        # else None will
+        # else None will None
         data['country'] = data['country'].str.replace(r' ', '')
         data['country'] = data['country'].str.replace(r'不详', '')
         data['country'] = data['country'].str.replace(r'中国内地', '内地')
+        data['country'] = data['country'].str.replace(r'中国大陆', '内地')
         data['country'] = data['country'].str.replace(r'中国香港', '香港')
         data['country'] = data['country'].str.replace(r'内地剧', '内地')
         data['language'] = data['language'].str.replace(r' ', '')
-        data = self._value_fix(data, 'language', ['国语', '华语'], '普通话')
+        data = self._value_fix(data, 'language', ['华语', '汉语普通话'], '普通话')
         data = self._value_fix(data, 'language', ['美国'], '英语')
-        data = self._value_fix(data, 'language', [''], None)
+        data = self._value_fix(data, 'language', [''], '')
         tmp = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '38', '不详']
-        data = self._value_fix(data, 'language', tmp, None)
+        data = self._value_fix(data, 'language', tmp, '')
         data = self._value_fix(data, 'tag', ['0'], '')
+        # data['actor'] = data['actor'].str.replace(r' ', '')
         data = self._value_fix(data, 'director', ['0'], '')
         return data
 
@@ -250,7 +258,36 @@ class Video(object):
     def _expand_all_columns(self, data, model):
         for column in self.features_trans[model]:
             size = self.features_trans[model][column]
-            data = self._expand_single_column(data, column, size)
+            # data = self._expand_single_column(data, column, size)
+            data = self._multilabel_single_column(data, column)
+            # data = self._raw_string_column(data, column)
+        return data
+
+    def _raw_string_column(self, data, column):
+        tmp = data[column].str.split(r'/').apply(str).to_frame(column)
+        data.drop(labels=column, axis=1, inplace=True)
+        data = pd.concat([data, tmp], axis=1)
+        return data
+
+    def _multilabel_single_column(self, data, column):
+        mlb = MultiLabelBinarizer()
+        tmp = data[column].fillna('')
+        index = data[column].index
+        tmp = tmp.str.split(r'/')
+        temp = mlb.fit_transform(tmp)
+        data.drop(labels=column, axis=1, inplace=True)
+        column_name = [column + '_' + s for s in mlb.classes_.tolist()]
+        # if column in ['tag', 'writer']: return data
+        formated_columns = DataFrame(data=temp, columns=column_name, index=index)
+        formated_columns = self.filter_multilabel(formated_columns)
+        data = pd.concat([data, formated_columns], axis=1)
+        return data
+
+    def filter_multilabel(self, data):
+        min_num_common_feature = 5
+        tmp = data.sum(axis=0, skipna=True)
+        invalid_feature_column = tmp.index[tmp < min_num_common_feature]
+        data.drop(labels=invalid_feature_column, axis=1, inplace=True)
         return data
 
     def _expand_single_column(self, data, column_name, min_size):
@@ -325,23 +362,25 @@ def main(config_file_path):
     print 'start get and process data'
     data = handler.process()
     print 'process end'
-    '''
+
     print 'save data to excel'
     for model, values in data.items():
+        print values.shape
+        print model
         values.to_excel('../data/{0}_data.xlsx'.format(model))
-    '''
+
     print 'Finished'
     return data
 
 
 if __name__ == '__main__':
-    '''
+    import cPickle as pickle
+
     config_file = '../etc/config.ini'
     data = main(config_file)
     with open('../data/id.dat', 'wb') as f:
         pickle.dump(data, f, protocol=True)
     '''
-    import cPickle as pickle
     data = {}
     with open('../data/id.dat', 'rb') as f:
         data = pickle.load(f)
@@ -355,3 +394,4 @@ if __name__ == '__main__':
     with open('../data/tmp.txt', 'w') as f:
         pickle.dump(data.columns, f)
         pickle.dump(data[1:2], f)
+'''

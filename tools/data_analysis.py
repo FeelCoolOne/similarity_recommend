@@ -13,8 +13,8 @@ def select_feature(data, y):
     '''array(n_classes, n_features)'''
     lr = LogisticRegression(C=0.01, penalty='l1')
     lr.fit(data, y)
-    model = SelectFromModel(lr, threshold='median', prefit=True)
-    _ = model.transform(data)
+    # model = SelectFromModel(lr, threshold='median', prefit=True)
+    # _ = model.transform(data)
     return lr.coef_
 
 
@@ -49,3 +49,4 @@ if __name__ == '__main__':
     handler = Video()
     dataframe = data['tv']
     analysis_data(dataframe)
+# dataframe = handler.clean_data(dataframe)
