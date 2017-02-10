@@ -2,7 +2,7 @@
 import matplotlib.pyplot as plt
 import matplotlib
 import sys
-from sklearn.linear_model import LogisticRegression
+from sklearn.linear_model import LinearRegression
 from sklearn.feature_selection import SelectFromModel
 if sys.getdefaultencoding() != 'utf-8':
     reload(sys)
@@ -11,10 +11,11 @@ if sys.getdefaultencoding() != 'utf-8':
 
 def select_feature(data, y):
     '''array(n_classes, n_features)'''
-    lr = LogisticRegression(C=0.01, penalty='l1')
+    lr = LinearRegression(fit_intercept=True, normalize=True, n_jobs=1)
     lr.fit(data, y)
     # model = SelectFromModel(lr, threshold='median', prefit=True)
     # _ = model.transform(data)
+    # model.get_support
     return lr.coef_
 
 
@@ -49,4 +50,10 @@ if __name__ == '__main__':
     handler = Video()
     dataframe = data['tv']
     analysis_data(dataframe)
+    y = dataframe['grade_score'].values
+    dataframe.drop('grade_score', inplace=True, axis=1)
+    X = dataframe.values
+    weight = select_feature(X, y)
+    for index in range(dataframe.columns.size):
+        print dataframe.columns[index], weight[index]
 # dataframe = handler.clean_data(dataframe)
