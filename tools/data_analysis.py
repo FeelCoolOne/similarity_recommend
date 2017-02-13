@@ -2,21 +2,10 @@
 import matplotlib.pyplot as plt
 import matplotlib
 import sys
-from sklearn.linear_model import LinearRegression
-from sklearn.feature_selection import SelectFromModel
+from sklearn.linear_model import LassoCV
 if sys.getdefaultencoding() != 'utf-8':
     reload(sys)
     sys.setdefaultencoding('utf-8')
-
-
-def select_feature(data, y):
-    '''array(n_classes, n_features)'''
-    lr = LinearRegression(fit_intercept=True, normalize=True, n_jobs=1)
-    lr.fit(data, y)
-    # model = SelectFromModel(lr, threshold='median', prefit=True)
-    # _ = model.transform(data)
-    # model.get_support
-    return lr.coef_
 
 
 def analysis_data(data):
@@ -36,6 +25,37 @@ def analysis_data(data):
         except:
             print index, 'no nan'
     plt.show()
+
+
+def select_feature(data, y):
+    '''array(n_classes, n_features)'''
+    alphas = [10, 5, 2, 1, 0.5, 0.1, 0.01]
+    lasso_cv = LassoCV(alphas=alphas, random_state=0)
+    lasso_cv.fit(data, y)
+    return lasso_cv.coef_
+
+
+def preprocessing(X):
+    from sklearn.preprocessing import scale
+    X_scaled = scale(X)
+    return X_scaled
+
+
+def calculate_cosine_similarity(X, weight):
+    '''
+    Parameters:
+        X: numpy.ndarray, shape: (num_sample, num_feature)
+        weight: numpy.ndarray, shape: (num_feature,)
+    Return：
+        array with shape (num_sample, num_sample)
+    '''
+    from numpy.linalg import norm
+    X *= weight
+    norms = norm(X, axis=0)
+    tmp = X.dot(X.T)
+    tmp = tmp.astype(float) / norms
+    tmp.T /= norms
+    return tmp
 
 
 if __name__ == '__main__':
