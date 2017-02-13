@@ -2,7 +2,7 @@
 import matplotlib.pyplot as plt
 import matplotlib
 import sys
-from sklearn.linear_model import LassoCV
+from sklearn.linear_model import LassoCV, Lasso
 if sys.getdefaultencoding() != 'utf-8':
     reload(sys)
     sys.setdefaultencoding('utf-8')
@@ -29,7 +29,13 @@ def analysis_data(data):
 
 def select_feature(data, y):
     '''array(n_classes, n_features)'''
+    # from sklearn.model_selection import train_test_split
     alphas = [10, 5, 2, 1, 0.5, 0.1, 0.01]
+    # X_train, X_test, y_train, y_test = train_test_split(data, y, test_size=0.3, random_state=42)
+    # scores = [Lasso(alpha=alpha).fit(X_train, y_train).score(X_test, y_test)for alpha in alphas]
+    # alpha = alphas[scores.index(max(scores))]
+    # regr = Lasso(alpha=alpha).fit(data, y)
+    # return regr.coef_
     lasso_cv = LassoCV(alphas=alphas, random_state=0)
     lasso_cv.fit(data, y)
     return lasso_cv.coef_
