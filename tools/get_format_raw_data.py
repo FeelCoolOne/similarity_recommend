@@ -183,7 +183,7 @@ class Video(object):
         data['iqiyi'] = document.get('iqiyi', '-1')
         data['youpeng'] = document.get('youpeng', '-1')
         data['focus'] = document.get('focus', '').strip()
-        data['vip'] = str(self._filter_pay_status(document))
+        data['vip'] = self._filter_pay_status(document)
         return data
 
     def process(self):
@@ -211,6 +211,8 @@ class Video(object):
             self.logger.debug('record: {0}'.format(data))
             if data['enable'] in ['0', '-1'] or data['cover_id'] == '-1':
                 continue
+            if data['cover_id'] in ['q5ni28gov0wrnr3', '0efab4wwezfsswp', 'e6dvr0t33mtckia', '0k7ue81txhpmozo', '0t301lolceby6hu', '3yi89pocfvj3vkg']:
+                continue
             record = []
             for feature in self.model_features[model]:
                 # check '0'
@@ -227,7 +229,7 @@ class Video(object):
         data = DataFrame(data_stack, index=id_stack, columns=columns)
         data = self.clean_data(data)
         data = self._expand_all_columns(data, model)
-        data[data.isnull()] = np.nan
+        data.fillna(data.median(), inplace=True)
         return data
 
     def clean_data(self, data):

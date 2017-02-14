@@ -1,6 +1,7 @@
 # Import file
 *.ini
 *.dat
+*.xlsx
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
