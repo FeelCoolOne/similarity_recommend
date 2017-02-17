@@ -1,7 +1,6 @@
 # encoding:utf-8
 
 from numpy.linalg import norm
-from numpy import absolute
 from pandas import DataFrame
 from sklearn.linear_model import LassoCV
 from sklearn.preprocessing import scale
@@ -20,13 +19,14 @@ class Sim(object):
     def select_feature(self, data, y):
         '''array(n_classes, n_features)'''
         # from sklearn.model_selection import train_test_split
-        alphas = [10, 5, 2, 1, 0.5, 0.1, 0.01]
+        # alphas = [10, 5, 2, 1, 0.5, 0.1, 0.01]
         # X_train, X_test, y_train, y_test = train_test_split(data, y, test_size=0.3, random_state=42)
         # scores = [Lasso(alpha=alpha).fit(X_train, y_train).score(X_test, y_test)for alpha in alphas]
         # alpha = alphas[scores.index(max(scores))]
         # regr = Lasso(alpha=alpha).fit(data, y)
         # return regr.coef_
-        lasso_cv = LassoCV(alphas=alphas, random_state=0)
+        # lasso_cv = LassoCV(alphas=alphas, positive=True, random_state=0)
+        lasso_cv = LassoCV(positive=True, random_state=0)
         lasso_cv.fit(data, y)
         return lasso_cv.coef_
 
@@ -41,13 +41,11 @@ class Sim(object):
         Return：
             array with shape (num_sample, num_sample)
         '''
-        X = self.data
-        X *= weight
+        X = self.data * weight
         sample_norms = norm(X, axis=1)
-        XX = X.dot(X.T)
         XX_norm = sample_norms * sample_norms.reshape(sample_norms.size, 1)
-        sim_array = (XX + 1) / (XX_norm + 2)
-        self.similar_frame = DataFrame(absolute(sim_array), columns=self.index, index=self.index)
+        sim_array = (X * X.T / XX_norm) * 0.5 + 0.5
+        self.similar_frame = DataFrame(sim_array, columns=self.index, index=self.index)
 
     def process(self):
         self.preprocessing()
