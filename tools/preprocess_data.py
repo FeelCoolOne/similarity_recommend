@@ -6,8 +6,8 @@ import logging
 from datetime import date, timedelta
 import ConfigParser
 from pandas import DataFrame
-from sklearn.preprocessing import MultiLabelBinarizer
-import pandas as pd
+from sklearn.feature_extraction import DictVectorizer
+# import pandas as pd
 import numpy as np
 
 
@@ -23,7 +23,6 @@ class Video(object):
         self.features_trans = {}
         self.logger = self.set_logger('../log')
         self.init_model_features()
-        self.init_trans_features()
         self.models = ['movie', 'tv',
                        'sports', 'entertainment', 'variety',
                        'education', 'doc', 'cartoon']
@@ -180,7 +179,7 @@ class Video(object):
         for model in self.models:
             # if model in ['tv', 'movie']: continue
             self.logger.info('get data in database of model : {0}'.format(model))
-            documents = self._get_documents(self.collection, {'model': model}, 100)
+            documents = self._get_documents(self.collection, {'model': model}, 10)
             self.logger.info('start handle data of model: {0}'.format(model))
             data[model] = self._process_documents(model, documents)
             self.logger.info('format data of model {0} finished'.format(model))
@@ -192,8 +191,10 @@ class Video(object):
         return documents
 
     def _process_documents(self, model, documents):
-        data_stack = []
+        tag_stack = []
+        actor_stack = []
         id_stack = []
+        director_stack = []
         for document in documents:
             data = self._handle_all_attr(document)
             self.logger.debug('record: {0}'.format(data))
@@ -201,24 +202,46 @@ class Video(object):
                 continue
             if data['cover_id'] in ['q5ni28gov0wrnr3', '0efab4wwezfsswp', 'e6dvr0t33mtckia', '0k7ue81txhpmozo', '0t301lolceby6hu', '3yi89pocfvj3vkg']:
                 continue
-            record = []
-            for feature in self.model_features[model]:
-                # check '0'
-                if data[feature] == -1 or (isinstance(data[feature], (str, unicode)) and
-                                           data[feature].strip() in ['未知', 'None', '不详']):
-                    data[feature] = np.nan
-                # if feature == 'language': print data[feature].strip()
-                record.append(data[feature])
             id_stack.append(data['cover_id'])
-            data_stack.append(record)
+            tag_stack.append(self.handle_tag_categorys(data))
+            actor_stack.append(self.handle_multi_label('actor', data))
+            director_stack.append(self.handle_multi_label('director', data))
+        v = DictVectorizer(sparse=False)
+        tag_stack = v.fit_transform(tag_stack)
+        tag_stack = DataFrame(tag_stack, index=id_stack, columns=v.feature_names_)
+        self.logger.debug('tag features of model {0}: {1}'.format(model, v.feature_names_))
+        actor_stack = v.fit_transform(actor_stack)
+        actor_stack = DataFrame(actor_stack, index=id_stack, columns=v.feature_names_)
+        self.logger.debug('actor features of model {0}: {1}'.format(model, v.feature_names_))
+        director_stack = v.fit_transform(director_stack)
+        director_stack = DataFrame(director_stack, index=id_stack, columns=v.feature_names_)
+        self.logger.debug('director features of model {0}: {1}'.format(model, v.feature_names_))
+        return [tag_stack, actor_stack, director_stack]
 
-        columns = self.model_features[model]
-        self.logger.debug('columns of model {0}: {1}'.format(model, columns))
-        data = DataFrame(data_stack, index=id_stack, columns=columns)
-        data = self.clean_data(data)
-        data = self._expand_all_columns(data, model)
-        data.fillna(data.median(), inplace=True)
+    def handle_tag_categorys(self, record):
+        tag = record['tag']
+        categorys = record['categorys']
+        tag = tag.split(r'/')
+        data = dict()
+        for index in categorys:
+            data[index] = 1
+        for index in set(tag) - set(categorys):
+            data[index] = self._weight_tune(tag.index(index) + 1)
         return data
+
+    def handle_multi_label(self, key, record):
+        record = record[key].split(r'/')
+        data = dict()
+        for index in record:
+            data[index] = self._weight_tune(record.index(index) + 1)
+            # data[index] = record.index(index)
+        return data
+
+    def _weight_tune(self, index):
+        if index <= 0:
+            raise ValueError
+        return np.exp(1 - np.sqrt(index))
+
 
 def main(config_file_path):
     cf = ConfigParser.ConfigParser()
@@ -239,7 +262,7 @@ def main(config_file_path):
     print 'start get and process data'
     data = handler.process()
     print 'process end'
-
+    '''
     print 'save data to excel'
     for model, values in data.items():
         print values.shape
@@ -247,4 +270,14 @@ def main(config_file_path):
         values.to_excel('../data/{0}_data.xlsx'.format(model))
 
     print 'Finished'
+    '''
     return data
+
+
+
+if __name__ == '__main__':
+    config_file = '../etc/config.ini'
+    data_file = './data/all_video_info.dat'
+    data = main(config_file)
+    print data
+    print 'Finished'
