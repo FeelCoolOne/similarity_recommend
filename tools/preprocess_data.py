@@ -5,6 +5,7 @@ from pymongo import MongoClient
 import logging
 from datetime import date, timedelta
 import ConfigParser
+import cPickle as pickle
 from pandas import DataFrame
 from sklearn.feature_extraction import DictVectorizer
 # import pandas as pd
@@ -19,8 +20,8 @@ sys.setdefaultencoding('utf-8')
 class Video(object):
 
     def __init__(self):
-        self.model_features = {}
-        self.features_trans = {}
+        self.model_features = dict()
+        self.features_trans = dict()
         self.logger = self.set_logger('../log')
         self.init_model_features()
         self.models = ['movie', 'tv',
@@ -174,7 +175,8 @@ class Video(object):
         return data
 
     def process(self):
-        data = {}
+        '''return dict {model_name: [tag, actor, director]} '''
+        data = dict()
         self.logger.info('start process data')
         for model in self.models:
             # if model in ['tv', 'movie']: continue
@@ -191,10 +193,10 @@ class Video(object):
         return documents
 
     def _process_documents(self, model, documents):
-        tag_stack = []
-        actor_stack = []
-        id_stack = []
-        director_stack = []
+        tag_stack = list()
+        actor_stack = list()
+        id_stack = list()
+        director_stack = list()
         for document in documents:
             data = self._handle_all_attr(document)
             self.logger.debug('record: {0}'.format(data))
@@ -216,7 +218,7 @@ class Video(object):
         director_stack = v.fit_transform(director_stack)
         director_stack = DataFrame(director_stack, index=id_stack, columns=v.feature_names_)
         self.logger.debug('director features of model {0}: {1}'.format(model, v.feature_names_))
-        return [tag_stack, actor_stack, director_stack]
+        return {'tag':tag_stack, 'actor':actor_stack, 'director':director_stack}
 
     def handle_tag_categorys(self, record):
         tag = record['tag']
@@ -243,7 +245,7 @@ class Video(object):
         return np.exp(1 - np.sqrt(index))
 
 
-def main(config_file_path):
+def main(config_file_path, data_file):
     cf = ConfigParser.ConfigParser()
     cf.read(config_file_path)
     address = cf.get('mongo', 'address')
@@ -262,6 +264,10 @@ def main(config_file_path):
     print 'start get and process data'
     data = handler.process()
     print 'process end'
+    # print('store data to file: {0}'.format(data_file))
+    with open(data_file, 'wb') as f:
+        pickle.dump(data, f, protocol=True)
+    print("stored data to file: {0}".format(data_file))
     '''
     print 'save data to excel'
     for model, values in data.items():
@@ -274,10 +280,9 @@ def main(config_file_path):
     return data
 
 
-
 if __name__ == '__main__':
     config_file = '../etc/config.ini'
-    data_file = './data/all_video_info.dat'
-    data = main(config_file)
+    data_file = '../data/all_video_info.dat'
+    data = main(config_file, data_file)
     print data
     print 'Finished'

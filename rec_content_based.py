@@ -46,6 +46,7 @@ def init_client(config_file_path):
 
 def main(file, config_file):
     global logger
+    weight = {'tag': 1, 'actor': 1.2, 'director': 1.4}
     data_all = {}
     logger.info('Start')
     con = init_client(config_file)
@@ -57,30 +58,28 @@ def main(file, config_file):
         logger.error('no data')
         return False
     key_pattern = 'AlgorithmsCommonBid_Cchiq3Test:SIM:ITI:'
-    for model, dataframe in data_all.items():
+    for model, data in data_all.items():
         logger.info('start process data of model : {}'.format(model))
-        logger.info('data record size : {0}'.format(dataframe.index.size))
-        logger.info('data feature: {0}'.format(dataframe.columns.tolist()))
-        logger.debug('data : {0}'.format(dataframe.values.tolist()))
-        y = dataframe['grade_score'].values.astype(float)
-        dataframe.drop('grade_score', inplace=True, axis=1)
-        X = dataframe.values.astype(float)
+        logger.info('data feature: {0}'.format(data.keys()))
+        for key in data.keys():
+            logger.debug('features of {0}: {1}'.format(key, data[key].columns))
+            logger.debug('num of record in features {0}: {1}'.format(key, len(data[key].index)))
         count = 0
-        s = sim.Sim(X, y, dataframe.index)
+        s = sim.Sim(weight, data)
         try:
             for cover_id, result in s.process():
                 logger.debug('{0}  {1}'.format(cover_id, result))
-                # print cover_id, result
-                con.set(key_pattern + cover_id, json.dumps(result))
+                print cover_id, result
+                # con.set(key_pattern + cover_id, json.dumps(result))
                 count += 1
         except Exception, e:
             logger.error('catched error :{0}, processed num: {1}, model: {2}'.format(e, count, model))
-            raise
+            raise('Error')
         logger.info('model {0} has finished'.format(model))
     logger.info('Finished')
 
 
 if __name__ == '__main__':
-    data_file = './data/id.dat'
-    config_file = './etc/config.ini'
+    data_file = r'./data/all_video_info.dat'
+    config_file = r'./etc/config.ini'
     main(data_file, config_file)
