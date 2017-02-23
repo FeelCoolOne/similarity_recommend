@@ -46,7 +46,9 @@ def init_client(config_file_path):
 
 def main(file, config_file):
     global logger
-    weight = {'tag': 1, 'actor': 1.2, 'director': 1.4}
+    weight = {'tag': 1.0, 'actor': 1.2,
+              'director': 1.4, 'language': 0.5,
+              'country': 0.2}
     data_all = {}
     logger.info('Start')
     con = init_client(config_file)
@@ -59,13 +61,18 @@ def main(file, config_file):
         return False
     key_pattern = 'AlgorithmsCommonBid_Cchiq3Test:SIM:ITI:'
     for model, data in data_all.items():
+        if model != 'movie': continue
         logger.info('start process data of model : {}'.format(model))
         logger.info('data feature: {0}'.format(data.keys()))
         for key in data.keys():
             logger.debug('features of {0}: {1}'.format(key, data[key].columns))
             logger.debug('num of record in features {0}: {1}'.format(key, len(data[key].index)))
         count = 0
+        print model
         s = sim.Sim(weight, data)
+        for cover_id, result in s.process():
+            logger.debug('{0}  {1}'.format(cover_id, result))
+            print cover_id, result
         try:
             for cover_id, result in s.process():
                 logger.debug('{0}  {1}'.format(cover_id, result))
@@ -74,7 +81,7 @@ def main(file, config_file):
                 count += 1
         except Exception, e:
             logger.error('catched error :{0}, processed num: {1}, model: {2}'.format(e, count, model))
-            raise('Error')
+            raise Exception('Error')
         logger.info('model {0} has finished'.format(model))
     logger.info('Finished')
 

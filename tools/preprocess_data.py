@@ -181,7 +181,7 @@ class Video(object):
         for model in self.models:
             # if model in ['tv', 'movie']: continue
             self.logger.info('get data in database of model : {0}'.format(model))
-            documents = self._get_documents(self.collection, {'model': model}, 10)
+            documents = self._get_documents(self.collection, {'model': model}, 100)
             self.logger.info('start handle data of model: {0}'.format(model))
             data[model] = self._process_documents(model, documents)
             self.logger.info('format data of model {0} finished'.format(model))
@@ -197,6 +197,8 @@ class Video(object):
         actor_stack = list()
         id_stack = list()
         director_stack = list()
+        language_stack = list()
+        country_stack = list()
         for document in documents:
             data = self._handle_all_attr(document)
             self.logger.debug('record: {0}'.format(data))
@@ -208,6 +210,8 @@ class Video(object):
             tag_stack.append(self.handle_tag_categorys(data))
             actor_stack.append(self.handle_multi_label('actor', data))
             director_stack.append(self.handle_multi_label('director', data))
+            language_stack.append(self.handle_multi_label('language', data))
+            country_stack.append(self.handle_multi_label('country', data))
         v = DictVectorizer(sparse=False)
         tag_stack = v.fit_transform(tag_stack)
         tag_stack = DataFrame(tag_stack, index=id_stack, columns=v.feature_names_)
@@ -218,7 +222,15 @@ class Video(object):
         director_stack = v.fit_transform(director_stack)
         director_stack = DataFrame(director_stack, index=id_stack, columns=v.feature_names_)
         self.logger.debug('director features of model {0}: {1}'.format(model, v.feature_names_))
-        return {'tag':tag_stack, 'actor':actor_stack, 'director':director_stack}
+        language_stack = v.fit_transform(language_stack)
+        language_stack = DataFrame(language_stack, index=id_stack, columns=v.feature_names_)
+        self.logger.debug('language features of model {0}: {1}'.format(model, v.feature_names_))
+        country_stack = v.fit_transform(country_stack)
+        country_stack = DataFrame(country_stack, index=id_stack, columns=v.feature_names_)
+        self.logger.debug('language features of model {0}: {1}'.format(model, v.feature_names_))
+        return {'tag': tag_stack, 'actor': actor_stack,
+                'director': director_stack, 'language': language_stack,
+                'country': country_stack}
 
     def handle_tag_categorys(self, record):
         tag = record['tag']
@@ -284,5 +296,5 @@ if __name__ == '__main__':
     config_file = '../etc/config.ini'
     data_file = '../data/all_video_info.dat'
     data = main(config_file, data_file)
-    print data
+    print data['tv']
     print 'Finished'
