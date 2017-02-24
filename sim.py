@@ -18,7 +18,7 @@ class Sim(object):
         try:
             # data = [transpose(self.data[key].T / sqrt(sum(self.data[key] ** 2, axis=1))) for key in self.data.keys()]
             data = [self.data[key] for key in self.data.keys()]
-            weight = [self.weight[key] * transpose(ones(self.data[key].T.shape) / (0.00001+self.data[key].values.astype(bool).sum(axis=1))) for key in self.data.keys()]
+            weight = [self.weight[key] * transpose(ones(self.data[key].T.shape) / (0.00001 + self.data[key].values.astype(bool).sum(axis=1))) for key in self.data.keys()]
         except:
             raise Exception("normailize feature in error")
         self.data = concat(data, axis=1)
@@ -33,12 +33,12 @@ class Sim(object):
     def process(self):
         data = self.data
         for index in data.index:
-            tmp = 2 * (data * data.loc[index]) / (data + data.loc[index] + 0.00001) * self.weight
+            tmp = 2 * (data * data.loc[index]) / (data + data.loc[index] + 0.00001) * self.weight.loc[index]
             sim_record = tmp.sum(axis=1).drop(index)
             yield index, self._calculate_output(index, sim_record)
 
     def work(self, data, weight, index):
-        tmp = 2 * (data * data.loc[index]) / (data + data.loc[index]) * weight
+        tmp = 2 * (data * data.loc[index]) / (data + data.loc[index]) * weight.loc[index]
         sim_record = tmp.sum(axis=1).drop(index)
         return index, self._calculate_output(index, sim_record)
 
