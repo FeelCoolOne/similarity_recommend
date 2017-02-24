@@ -182,9 +182,9 @@ class Video(object):
             # if model in ['tv', 'movie']: continue
             self.logger.info('get data in database of model : {0}'.format(model))
             documents = self._get_documents(self.collection, {'model': model}, 100)
-            self.logger.info('start handle data of model: {0}'.format(model))
+            self.logger.info('start handling data of model: {0}'.format(model))
             data[model] = self._process_documents(model, documents)
-            self.logger.info('format data of model {0} finished'.format(model))
+            self.logger.info('finish formating data of model {0} '.format(model))
         return data
 
     def _get_documents(self, collection, condition, num=10):
@@ -242,13 +242,15 @@ class Video(object):
         data = dict()
         for index in categorys:
             data[index] = 1
+        same_data_size = set(tag) & set(categorys)
         for index in set(tag) - set(categorys):
-            data[index] = self._weight_tune(tag.index(index) + 1)
+            data[index] = self._weight_tune(tag.index(index) + 1 - same_data_size)
         return data
 
     def handle_multi_label(self, key, record):
         record = record[key].split(r'/')
         data = dict()
+
         for index in record:
             data[index] = self._weight_tune(record.index(index) + 1)
             # data[index] = record.index(index)
@@ -273,12 +275,12 @@ def main(config_file_path, data_file):
               'sports', 'entertainment', 'variety',
               'education', 'doc', 'cartoon']
     handler = Video()
-    print 'connect mongo'
+    print 'connecting mongo'
     handler.connect_mongodb(address, port, username, password, database, collection)
-    print 'connect success'
-    print 'start get and process data'
+    print 'success to mongo'
+    print 'start getting and processing data'
     data = handler.process()
-    print 'process end'
+    print 'finish processing data'
     # print('store data to file: {0}'.format(data_file))
     with open(data_file, 'wb') as f:
         pickle.dump(data, f, protocol=True)

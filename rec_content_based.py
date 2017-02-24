@@ -4,6 +4,7 @@ import json
 import cPickle as pickle
 import ConfigParser
 from datetime import date, timedelta
+from threading import Thread, Lock
 import sim
 import sys
 reload(sys)
@@ -44,11 +45,21 @@ def init_client(config_file_path):
         return client
 
 
+def work(fun, data, weight, index, mutex, con):
+    key_pattern = 'AlgorithmsCommonBid_Cchiq3Test:SIM:ITI:'
+    while index < data.index.size:
+        cover_id, result = fun(data, weight, data.index[index])
+        mutex.acquire()
+        con.set(key_pattern + cover_id, json.dumps(result))
+        index += 1
+        mutex.release()
+
+
 def main(file, config_file):
     global logger
-    weight = {'tag': 1.0, 'actor': 1.2,
-              'director': 1.4, 'language': 0.5,
-              'country': 0.5}
+    weight = {'tag': 0, 'actor': 5,
+              'director': 0, 'language': 0,
+              'country': 0}
     data_all = {}
     logger.info('Start')
     con = init_client(config_file)
@@ -59,7 +70,7 @@ def main(file, config_file):
     if len(data_all) == 0:
         logger.error('no data')
         return False
-    key_pattern = 'AlgorithmsCommonBid_Cchiq3Test:SIM:ITI:'
+    # key_pattern = 'AlgorithmsCommonBid_Cchiq3Test:SIM:ITI:'
     for model, data in data_all.items():
         if model != 'movie': continue
         logger.info('start process data of model : {}'.format(model))
@@ -70,20 +81,39 @@ def main(file, config_file):
         count = 0
         print model
         s = sim.Sim(weight, data)
-        for cover_id, result in s.process():
-            logger.debug('{0}  {1}'.format(cover_id, result))
-            print cover_id, result
+        print s.work(s.data, s.weight, '5c58griiqftvq00')
+        '''
+        threads = []
+        mutex = Lock()
+        for index in s.data.index:
+            count += 1
+            if count == 10:
+                break
+            args = 
+            tmp = Thread(target=work, args=(s.work, s.data, s.weight, index, mutex, con))
+            threads.append(tmp)
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+        '''
+
         try:
+                # con.set(key_pattern + cover_id, json.dumps(result))
+
+            '''
             for cover_id, result in s.process():
                 logger.debug('{0}  {1}'.format(cover_id, result))
-                print cover_id, result
-                # con.set(key_pattern + cover_id, json.dumps(result))
+                # print cover_id, result
+                con.set(key_pattern + cover_id, json.dumps(result))
                 count += 1
+            '''
         except Exception, e:
             logger.error('catched error :{0}, processed num: {1}, model: {2}'.format(e, count, model))
             raise Exception('Error')
         logger.info('model {0} has finished'.format(model))
     logger.info('Finished')
+
 
 
 if __name__ == '__main__':
