@@ -48,7 +48,7 @@ def main(file, config_file):
     global logger
     weight = {'tag': 1.0, 'actor': 1.2,
               'director': 1.4, 'language': 0.5,
-              'country': 0.2}
+              'country': 0.5}
     data_all = {}
     logger.info('Start')
     con = init_client(config_file)

@@ -188,8 +188,8 @@ class Video(object):
         return data
 
     def _get_documents(self, collection, condition, num=10):
-        documents = collection.find(condition).limit(num)
-        # documents = collection.find(condition)
+        # documents = collection.find(condition).limit(num)
+        documents = collection.find(condition)
         return documents
 
     def _process_documents(self, model, documents):
@@ -228,6 +228,9 @@ class Video(object):
         country_stack = v.fit_transform(country_stack)
         country_stack = DataFrame(country_stack, index=id_stack, columns=v.feature_names_)
         self.logger.debug('language features of model {0}: {1}'.format(model, v.feature_names_))
+        invalid_columns = [r'未知']
+        for data in [tag_stack, actor_stack, director_stack, language_stack, country_stack]:
+            data.drop(invalid_columns, inplace=True, axis=1, errors='ignore')
         return {'tag': tag_stack, 'actor': actor_stack,
                 'director': director_stack, 'language': language_stack,
                 'country': country_stack}
@@ -296,5 +299,5 @@ if __name__ == '__main__':
     config_file = '../etc/config.ini'
     data_file = '../data/all_video_info.dat'
     data = main(config_file, data_file)
-    print data['tv']
+    # print data['tv']
     print 'Finished'

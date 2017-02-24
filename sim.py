@@ -9,16 +9,16 @@ class Sim(object):
         self.min_num_common_feature = 2
         self._init_data()
         self._filter_label()
-        #print self.data.shape
-        #print self.weight.shape
+        # print self.data.shape
+        # print self.weight.shape
 
     def _init_data(self):
         from pandas import concat, DataFrame
-        from numpy import sum, sqrt, transpose, concatenate, ones
+        from numpy import transpose, concatenate, ones
         try:
             # data = [transpose(self.data[key].T / sqrt(sum(self.data[key] ** 2, axis=1))) for key in self.data.keys()]
             data = [self.data[key] for key in self.data.keys()]
-            weight = [self.weight[key] * transpose(ones(self.data[key].T.shape)/self.data[key].values.astype(bool).sum(axis=1)) for key in self.data.keys()]
+            weight = [self.weight[key] * transpose(ones(self.data[key].T.shape) / self.data[key].values.astype(bool).sum(axis=1)) for key in self.data.keys()]
         except:
             raise Exception("normailize feature in error")
         self.data = concat(data, axis=1)
@@ -33,7 +33,7 @@ class Sim(object):
     def process(self):
         data = self.data
         for index in data.index:
-            tmp = 2 * (data * data.loc[index]) / (data + data.loc[index]+0.00001) * self.weight
+            tmp = 2 * (data * data.loc[index]) / (data + data.loc[index] + 0.00001) * self.weight
             sim_record = tmp.sum(axis=1).drop(index)
             yield index, self._calculate_output(index, sim_record)
 
