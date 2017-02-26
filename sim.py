@@ -22,6 +22,7 @@ class Sim(object):
         except:
             raise Exception("normailize feature in error")
         self.data = concat(data, axis=1)
+        # self.data = concat(data, axis=1).to_sparse(fill_value=0)
         self.weight = DataFrame(data=concatenate(weight, axis=1), columns=self.data.columns, index=self.data.index)
 
     def _filter_label(self):

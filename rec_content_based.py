@@ -55,11 +55,14 @@ def work(fun, data, weight, index, mutex, con):
         mutex.release()
 
 
-def main(file, config_file):
+def main(data_file_path, config_file):
     global logger
     weight = {'tag': 0, 'actor': 5,
               'director': 0, 'language': 0,
               'country': 0}
+    models = ['movie', 'tv',
+              'sports', 'entertainment', 'variety',
+              'education', 'doc', 'cartoon']
     data_all = {}
     logger.info('Start')
     con = init_client(config_file)
@@ -71,8 +74,14 @@ def main(file, config_file):
         logger.error('no data')
         return False
     # key_pattern = 'AlgorithmsCommonBid_Cchiq3Test:SIM:ITI:'
-    for model, data in data_all.items():
-        if model != 'movie': continue
+    for model in models:
+        data = dict()
+        with open(data_file_path + r'/' + model + r'.dat', 'rb') as f:
+            data = pickle.load(f)
+        if len(data) < 10:
+            logger.error('Error: read data of model {0}, length of result {1}'.format(model, len(data)))
+        if model != 'movie':
+            continue
         logger.info('start process data of model : {}'.format(model))
         logger.info('data feature: {0}'.format(data.keys()))
         for key in data.keys():
@@ -113,7 +122,6 @@ def main(file, config_file):
             raise Exception('Error')
         logger.info('model {0} has finished'.format(model))
     logger.info('Finished')
-
 
 
 if __name__ == '__main__':

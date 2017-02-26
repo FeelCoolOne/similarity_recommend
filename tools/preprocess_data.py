@@ -262,9 +262,9 @@ class Video(object):
         return np.exp(1 - np.sqrt(index))
 
 
-def main(config_file_path, data_file):
+def main(config_file, data_file_path):
     cf = ConfigParser.ConfigParser()
-    cf.read(config_file_path)
+    cf.read(config_file)
     address = cf.get('mongo', 'address')
     port = int(cf.get('mongo', 'port'))
     username = cf.get('mongo', 'username')
@@ -281,10 +281,11 @@ def main(config_file_path, data_file):
     print 'start getting and processing data'
     data = handler.process()
     print 'finish processing data'
-    # print('store data to file: {0}'.format(data_file))
-    with open(data_file, 'wb') as f:
-        pickle.dump(data, f, protocol=True)
-    print("stored data to file: {0}".format(data_file))
+    # print('store data to file: {0}'.format(data_file_path))
+    for model in models:
+        with open(data_file_path + r'/' + model + r'.dat', 'wb') as f:
+            pickle.dump(data[model], f, protocol=True)
+    print("stored data to path: {0}".format(data_file_path))
     '''
     print 'save data to excel'
     for model, values in data.items():
@@ -299,7 +300,7 @@ def main(config_file_path, data_file):
 
 if __name__ == '__main__':
     config_file = '../etc/config.ini'
-    data_file = '../data/all_video_info.dat'
-    data = main(config_file, data_file)
+    data_file_path = '../data'
+    data = main(config_file, data_file_path)
     # print data['tv']
     print 'Finished'
