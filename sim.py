@@ -18,12 +18,20 @@ class Sim(object):
         try:
             # data = [transpose(self.data[key].T / sqrt(sum(self.data[key] ** 2, axis=1))) for key in self.data.keys()]
             data = [self.data[key] for key in self.data.keys()]
-            weight = [self.weight[key] * transpose(ones(self.data[key].T.shape) / (0.00001 + self.data[key].values.astype(bool).sum(axis=1))) for key in self.data.keys()]
+            weight_tf_idf = list()
+            '''feature tag use tf-idf weight, mean weight of limit num in actor and other just mean weight'''
+            for key in self.data.keys():
+                if key == 'tag':
+                    weight_tf_idf.append(self.weight[key] * ones(self.data[key].shape) / (0.00001 + self.data[key].values.astype(bool).sum(axis=0)))
+                else:
+                    weight_tf_idf.append(self.weight[key] * transpose(ones(self.data[key].T.shape) / (0.00001 + self.data[key].values.astype(bool).sum(axis=1))))
+            # weight_tf_idf = [self.weight[key] * ones(self.data[key].shape) / (0.00001 + self.data[key].values.astype(bool).sum(axis=0)) for key in self.data.keys()]
+            # weight = [self.weight[key] * transpose(ones(self.data[key].T.shape) / (0.00001 + self.data[key].values.astype(bool).sum(axis=1))) for key in self.data.keys()]
         except:
             raise Exception("normailize feature in error")
         self.data = concat(data, axis=1)
         # self.data = concat(data, axis=1).to_sparse(fill_value=0)
-        self.weight = DataFrame(data=concatenate(weight, axis=1), columns=self.data.columns, index=self.data.index)
+        self.weight = DataFrame(data=concatenate(weight_tf_idf, axis=1), columns=self.data.columns, index=self.data.index)
 
     def _filter_label(self):
         tmp = self.data.astype(bool).sum(axis=0)
@@ -53,9 +61,9 @@ if __name__ == "__main__":
     import numpy as np
     import pandas as pd
     weight = {'tag': 1, 'actor': 1.2, 'director': 1.4}
-    tag = pd.DataFrame(np.random.rand(4,3), index=['a','b','c','d'], columns=['t1','t2','t3'])
-    actor = pd.DataFrame(np.random.rand(4,3), index=['a','b','c','d'], columns=['a1','a2','a3'])
-    director = pd.DataFrame(np.random.rand(4,3), index=['a','b','c','d'], columns=['d1','d2','d3'])
-    sim = Sim(weight, {'tag':tag, 'actor':actor, 'director':director})
+    tag = pd.DataFrame(np.random.rand(4, 3), index=['a', 'b', 'c', 'd'], columns=['t1', 't2', 't3'])
+    actor = pd.DataFrame(np.random.rand(4, 3), index=['a', 'b', 'c', 'd'], columns=['a1', 'a2', 'a3'])
+    director = pd.DataFrame(np.random.rand(4, 3), index=['a', 'b', 'c', 'd'], columns=['d1', 'd2', 'd3'])
+    sim = Sim(weight, {'tag': tag, 'actor': actor, 'director': director})
     for index, result in sim.process():
         print index, result

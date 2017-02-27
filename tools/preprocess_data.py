@@ -179,7 +179,7 @@ class Video(object):
         data = dict()
         self.logger.info('start process data')
         for model in self.models:
-            # if model in ['tv', 'movie']: continue
+            if model not in ['tv', 'movie']: continue
             self.logger.info('get data in database of model : {0}'.format(model))
             documents = self._get_documents(self.collection, {'model': model}, 100)
             self.logger.info('start handling data of model: {0}'.format(model))
@@ -242,23 +242,35 @@ class Video(object):
         data = dict()
         for index in categorys:
             data[index] = 1
-        same_data_size = set(tag) & set(categorys)
+        # caution : not match pattern
+        same_data_size = len(set(tag) & set(categorys))
         for index in set(tag) - set(categorys):
-            data[index] = self._weight_tune(tag.index(index) + 1 - same_data_size)
+            try:
+                data[index] = self._weight_tune(tag.index(index) + 1 - same_data_size)
+            except Exception, e:
+                print index
+                print tag.index(index)
+                print same_data_size
+                print tag
+                print categorys
+                raise
         return data
 
     def handle_multi_label(self, key, record):
         record = record[key].split(r'/')
+        if key == 'actor':
+            record = record[:7]
         data = dict()
-
         for index in record:
             data[index] = self._weight_tune(record.index(index) + 1)
             # data[index] = record.index(index)
         return data
 
     def _weight_tune(self, index):
+        '''
         if index <= 0:
             raise ValueError
+        '''
         return np.exp(1 - np.sqrt(index))
 
 
@@ -283,6 +295,7 @@ def main(config_file, data_file_path):
     print 'finish processing data'
     # print('store data to file: {0}'.format(data_file_path))
     for model in models:
+        if model not in ['tv', 'movie']: continue
         with open(data_file_path + r'/' + model + r'.dat', 'wb') as f:
             pickle.dump(data[model], f, protocol=True)
     print("stored data to path: {0}".format(data_file_path))

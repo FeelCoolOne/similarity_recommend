@@ -57,32 +57,25 @@ def work(fun, data, weight, index, mutex, con):
 
 def main(data_file_path, config_file):
     global logger
-    weight = {'tag': 0, 'actor': 5,
-              'director': 0, 'language': 0,
-              'country': 0}
+    weight = {'tag': 10, 'actor': 8,
+              'director': 10000, 'language': 0.5,
+              'country': 0.5}
     models = ['movie', 'tv',
               'sports', 'entertainment', 'variety',
               'education', 'doc', 'cartoon']
-    data_all = {}
+
     logger.info('Start')
     con = init_client(config_file)
-    logger.info('start read data file: {0}'.format(file))
-    with open(file, 'rb') as f:
-        data_all = pickle.load(f)
-    logger.info('finished read data file')
-    if len(data_all) == 0:
-        logger.error('no data')
-        return False
-    # key_pattern = 'AlgorithmsCommonBid_Cchiq3Test:SIM:ITI:'
+    key_pattern = 'AlgorithmsCommonBid_Cchiq3Test:SIM:ITI:'
     for model in models:
+        if model != 'tv':
+            continue
         data = dict()
         with open(data_file_path + r'/' + model + r'.dat', 'rb') as f:
             data = pickle.load(f)
         if len(data) < 10:
             logger.error('Error: read data of model {0}, length of result {1}'.format(model, len(data)))
-        if model != 'movie':
-            continue
-        logger.info('start process data of model : {}'.format(model))
+        logger.info('start process data of model : {0}'.format(model))
         logger.info('data feature: {0}'.format(data.keys()))
         for key in data.keys():
             logger.debug('features of {0}: {1}'.format(key, data[key].columns))
@@ -90,7 +83,8 @@ def main(data_file_path, config_file):
         count = 0
         print model
         s = sim.Sim(weight, data)
-        print s.work(s.data, s.weight, '5c58griiqftvq00')
+        # print s.work(s.data, s.weight, '5c58griiqftvq00')
+        # print s.work(s.data, s.weight, 'tgqzbayrxwthirg')
         '''
         threads = []
         mutex = Lock()
@@ -98,7 +92,6 @@ def main(data_file_path, config_file):
             count += 1
             if count == 10:
                 break
-            args = 
             tmp = Thread(target=work, args=(s.work, s.data, s.weight, index, mutex, con))
             threads.append(tmp)
         for t in threads:
@@ -106,17 +99,13 @@ def main(data_file_path, config_file):
         for t in threads:
             t.join()
         '''
-
         try:
-                # con.set(key_pattern + cover_id, json.dumps(result))
-
-            '''
             for cover_id, result in s.process():
                 logger.debug('{0}  {1}'.format(cover_id, result))
                 # print cover_id, result
                 con.set(key_pattern + cover_id, json.dumps(result))
+                con.expire(key_pattern + cover_id, 1296000)
                 count += 1
-            '''
         except Exception, e:
             logger.error('catched error :{0}, processed num: {1}, model: {2}'.format(e, count, model))
             raise Exception('Error')
@@ -125,6 +114,6 @@ def main(data_file_path, config_file):
 
 
 if __name__ == '__main__':
-    data_file = r'./data/all_video_info.dat'
+    data_file_path = r'./data'
     config_file = r'./etc/config.ini'
-    main(data_file, config_file)
+    main(data_file_path, config_file)
