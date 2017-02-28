@@ -57,9 +57,9 @@ def work(fun, data, weight, index, mutex, con):
 
 def main(data_file_path, config_file):
     global logger
-    weight = {'tag': 10, 'actor': 8,
-              'director': 10000, 'language': 0.5,
-              'country': 0.5}
+    weight = {'tag': 20, 'actor': 10,
+              'director': 10000, 'language': 10,
+              'country': 200}
     models = ['movie', 'tv',
               'sports', 'entertainment', 'variety',
               'education', 'doc', 'cartoon']
@@ -68,13 +68,17 @@ def main(data_file_path, config_file):
     con = init_client(config_file)
     key_pattern = 'AlgorithmsCommonBid_Cchiq3Test:SIM:ITI:'
     for model in models:
-        if model != 'tv':
+        if model != 'movie':
             continue
         data = dict()
         with open(data_file_path + r'/' + model + r'.dat', 'rb') as f:
             data = pickle.load(f)
-        if len(data) < 10:
-            logger.error('Error: read data of model {0}, length of result {1}'.format(model, len(data)))
+        if len(data) != 5:
+            logger.error('Error: read data of model {0}, model feature data be not matched{1}'.format(model, len(data.keys())))
+            raise Exception('model feature data be not matched')
+        if len(data['director'].index) < 1000:
+            logger.error('Error: read data of model {0}, num of record wrong'.format(model))
+            raise Exception('model data be wrong')
         logger.info('start process data of model : {0}'.format(model))
         logger.info('data feature: {0}'.format(data.keys()))
         for key in data.keys():
@@ -84,7 +88,7 @@ def main(data_file_path, config_file):
         print model
         s = sim.Sim(weight, data)
         # print s.work(s.data, s.weight, '5c58griiqftvq00')
-        # print s.work(s.data, s.weight, 'tgqzbayrxwthirg')
+        # print s.work(s.data, s.weight, 'f0xkmuqkpmxku1i')
         '''
         threads = []
         mutex = Lock()

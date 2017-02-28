@@ -19,9 +19,11 @@ class Sim(object):
             # data = [transpose(self.data[key].T / sqrt(sum(self.data[key] ** 2, axis=1))) for key in self.data.keys()]
             data = [self.data[key] for key in self.data.keys()]
             weight_tf_idf = list()
-            '''feature tag use tf-idf weight, mean weight of limit num in actor and other just mean weight'''
+            ''' tag use tf-idf weight, mean weight of limit num in actor,
+                country and language take weight like idf
+            '''
             for key in self.data.keys():
-                if key == 'tag':
+                if key in ['tag', 'country', 'language']:
                     weight_tf_idf.append(self.weight[key] * ones(self.data[key].shape) / (0.00001 + self.data[key].values.astype(bool).sum(axis=0)))
                 else:
                     weight_tf_idf.append(self.weight[key] * transpose(ones(self.data[key].T.shape) / (0.00001 + self.data[key].values.astype(bool).sum(axis=1))))
