@@ -305,7 +305,6 @@ def main(config_file, data_file_path):
         print values.shape
         print model
         values.to_excel('../data/{0}_data.xlsx'.format(model))
-
     print 'Finished'
     '''
     return data
