@@ -85,24 +85,9 @@ def main(data_file_path, config_file):
             logger.debug('features of {0}: {1}'.format(key, data[key].columns))
             logger.debug('num of record in features {0}: {1}'.format(key, len(data[key].index)))
         count = 0
-        print model
         s = sim.Sim(weight, data)
         # print s.work(s.data, s.weight, '5c58griiqftvq00')
         # print s.work(s.data, s.weight, 'f0xkmuqkpmxku1i')
-        '''
-        threads = []
-        mutex = Lock()
-        for index in s.data.index:
-            count += 1
-            if count == 10:
-                break
-            tmp = Thread(target=work, args=(s.work, s.data, s.weight, index, mutex, con))
-            threads.append(tmp)
-        for t in threads:
-            t.start()
-        for t in threads:
-            t.join()
-        '''
         try:
             for cover_id, result in s.process():
                 logger.debug('{0}  {1}'.format(cover_id, result))
@@ -115,6 +100,17 @@ def main(data_file_path, config_file):
             raise Exception('Error')
         logger.info('model {0} has finished'.format(model))
     logger.info('Finished')
+
+    '''
+        weights = {'actor':[],
+                   'director': [],
+                   'tag': [],
+                   'country': [],
+                   'language': [],
+                   'score': [],
+                   'year': [],
+                   }
+    '''
 
 
 if __name__ == '__main__':

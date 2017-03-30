@@ -3,14 +3,14 @@
 # and save to local file '../data/id.dat'
 from pymongo import MongoClient
 import logging
-from datetime import date, timedelta
+from datetime import datetime, date, timedelta
 import ConfigParser
 import cPickle as pickle
-from pandas import DataFrame
-from sklearn.feature_extraction import DictVectorizer
+from pandas import DataFrame, Series
 # import pandas as pd
 import numpy as np
-
+import re
+import traceback
 
 import sys
 reload(sys)
@@ -24,9 +24,14 @@ class Video(object):
         self.features_trans = dict()
         self.logger = self.set_logger('../log')
         self.init_model_features()
+        self.pat = re.compile(r'\s*[/\\|]\s*')
         self.models = ['movie', 'tv',
                        'sports', 'entertainment', 'variety',
                        'education', 'doc', 'cartoon']
+        self.outliers_list = {'language': ['0', '1', '2', '3' '4', '5', '6', '7', '8', '9', '38'],
+                              'country': [u'北京金英马影视文化有限责任公司', u'中華']}
+        self.tran_alias_label_dict = {'language': {u'普通话': u'国语', u'普通话': '1', u'英语': '2', u'法语': '3', u'日语': '7'},
+                                      'country': {u'中国大陆': u'内地', u'中国大陆': u'中国内地', u'中国台湾': u'台湾', u'中国香港': u'香港'}}
 
     def set_logger(self, path):
         format = '''[ %(levelname)s %(asctime)s @ %(process)d] (%(filename)s:%(lineno)d) - %(message)s'''
@@ -58,40 +63,42 @@ class Video(object):
     def init_model_features(self):
         '''default features to be handled in process'''
         self.model_features['cartoon'] = ['tag', 'director', 'country',
-                                          'actor', 'language']
+                                          'actor', 'language', 'year', 'score']
         self.model_features['doc'] = ['tag', 'director', 'country',
-                                      'actor', 'language']
+                                      'actor', 'language', 'year', 'score']
         self.model_features['education'] = ['tag', 'director', 'country',
-                                            'actor', 'language']
+                                            'actor', 'language', 'year', 'score']
         self.model_features['entertainment'] = ['tag', 'director', 'country',
-                                                'actor', 'language']
+                                                'actor', 'language', 'year', 'score']
         self.model_features['movie'] = ['tag', 'director', 'country',
-                                        'actor', 'language']
+                                        'actor', 'language', 'year', 'score']
         self.model_features['sports'] = ['tag', 'director', 'country',
-                                         'actor', 'language']
+                                         'actor', 'language', 'year', 'score']
         self.model_features['tv'] = ['tag', 'director', 'country',
-                                     'actor', 'language']
+                                     'actor', 'language', 'year', 'score']
         self.model_features['variety'] = ['tag', 'director', 'country',
-                                          'actor', 'language']
+                                          'actor', 'language', 'year', 'score']
 
     def set_feature(self, model, features):
         self.model_features[model] = features
 
     def _filter_id(self, document):
-        '''filte other attribution but id
-        -->-1: not exist, other be video id'''
         record = document
-        id = '-1'
-        if record['tencent'] == '1':
+        id = None
+        if record['tencent'] == '1' and 'pp_tencent' in record:
             id = record['pp_tencent']['tencentId']
-        elif record['youpeng'] == '1':
+        elif record['youpeng'] == '1' and 'pp_youpeng' in record:
             id = record['pp_youpeng']['yp_id']
+        '''
+        elif record['iqiyi'] == '1':
+            id = '666666'
+        '''
         return id
 
     def _filter_pay_status(self, document):
         record = document
         vip = 0
-        if record['tencent'] == '1' and record['pp_tencent']['pay_status'].strip() in ['用券', '会员点播', '会员免费']:
+        if record['tencent'] == '1' and record['pp_tencent']['pay_status'].strip() in [u'用券', u'会员点播', u'会员免费']:
             vip = 1
         elif record['youpeng'] == '1':
             vip = 1
@@ -100,32 +107,33 @@ class Video(object):
         return vip
 
     def _filter_year(self, document):
-        year = document.get('year', 'None')
-        if isinstance(year, str):
-            year = year[:4]
         try:
-            if year == 'None' or year == u'未知' or int(year) - 0 < 1500:
-                year = int(document.get('issue', 'None').split('-')[0])
-        except ValueError, e:
-            print 'ValueError {0}'.format(e)
+            if 'd_issue' in document and document.get('d_issue').strip() != '':
+                d_issue = document.get('d_issue').strip()
+                year = datetime.strptime(d_issue, "%Y-%m-%d").year
+            elif 'issue' in document and document.get('issue').strip() != '':
+                issue = document.get('issue').strip()
+                year = datetime.strptime(issue, "%Y-%m-%d").year
+            elif 'year' in document:
+                year = str(document.get('year'))
+                year = datetime.strptime(year, "%Y").year
+            if year > date.today().year or year < 1900:
+                raise Exception("year error : {0}".format(year))
+        except Exception:
             year = None
-        if year is not None and int(year) < 1500:
-            year = None
-        elif year is not None:
-            year = int(year)
         return year
 
     def _filter_tag(self, document):
-        tag = document.get('tag', '').replace(r' ', '')
-        return tag
+        tag = document.get('d_type', '').strip()
+        return self.pat.split(tag)
 
     def _filter_language(self, document):
-        language = document.get('language', '').encode('utf-8').replace(r' ', '')
-        return language
+        language = document.get('language', '').strip()
+        return self.pat.split(language)
 
     def _filter_country(self, document):
-        country = document.get('country', '').replace(r' ', '')
-        return country
+        country = document.get('country', '').strip()
+        return self.pat.split(country)
 
     def _filter_categorys(self, document):
         categorys = list()
@@ -133,45 +141,46 @@ class Video(object):
             categorys.append(item['name'])
         return categorys
 
+    def _filter_score(self, document):
+        if 'd_grade_score' in document and document.get('d_grade_score').strip() != '':
+            score = float(document.get('d_grade_score'))
+        elif 'grade_score' in document:
+            score = float(document.get('grade_score'))
+        else:
+            score = None
+        return score
+
     def _handle_all_attr(self, document):
-        data = {}
-        none_label = ''
+        data = dict()
         document = dict(document)
         data['cover_id'] = self._filter_id(document)
-        data['model'] = document.get('model', none_label)
-        data['alias'] = document.get('alias', none_label)
-        # num
-        data['duration'] = document.get('duration', -1)
-        data['enname'] = document.get('enName', none_label)
-        data['language'] = self._filter_language(document)
-
-        data['name'] = document.get('name', none_label).strip()
-        # data['issue'] = document.get('issue', '0000-00-00')
-        data['director'] = str(document.get('director', '').strip())
-        data['actor'] = str(document.get('cast', '')).replace(r' ', '')
-        # num
-        data['grade_score'] = document.get('grade_score', 0)
-        data['tag'] = str(self._filter_tag(document))
-        data['country'] = str(self._filter_country(document))
-        # TODO data['country_group'] = document.get('country_group', '[]')
-        # num
-        data['episodes'] = document.get('episodes', -1)
-        data['definition'] = str(document.get('definition', -1))
-        data['writer'] = str(document.get('writer', none_label).strip())
-        data['year'] = self._filter_year(document)
+        # data['model'] = document.get('model', none_label)
+        # data['alias'] = document.get('alias', none_label)
+        # data['duration'] = document.get('duration', -1)
+        # data['episodes'] = document.get('episodes', -1)
+        # data['enname'] = document.get('enName', none_label)
+        # data['name'] = document.get('name', none_label).strip()
+        data['director'] = self.pat.split(document.get('director').strip())  # list
+        data['actor'] = self.pat.split(document.get('cast', '').strip())[:7]  # list
+        data['writer'] = self.pat.split(document.get('writer', '').strip())  # list
+        data['score'] = self._filter_score(document)  # float
+        data['tag'] = self._filter_tag(document)  # list
+        data['country'] = self._filter_country(document)  # list
+        data['language'] = self._filter_language(document)  # list
+        data['definition'] = document.get('definition', None)  # int
+        data['year'] = self._filter_year(document)  # int
+        data['vip'] = self._filter_pay_status(document)  # bool
         # 上架
-        data['enable'] = document.get('enable', '-1')
-        # 碎视频
-        data['isClip'] = document.get('isClip', '-1')
-        data['categorys'] = self._filter_categorys(document)
-        data['pp_tencent'] = document.get('pp_tencent', '{}')
-        data['pp_iqiyi'] = document.get('pp_iqiyi', '{}')
-        data['pp_youpeng'] = document.get('pp_youpeng', '{}')
-        data['tencent'] = document.get('tencent', '-1')
-        data['iqiyi'] = document.get('iqiyi', '-1')
-        data['youpeng'] = document.get('youpeng', '-1')
-        data['focus'] = document.get('focus', '').strip()
-        data['vip'] = self._filter_pay_status(document)
+        data['enable'] = document.get('enable', None)  # str
+        # data['isClip'] = document.get('isClip', '-1')
+        # data['categorys'] = self._filter_categorys(document)
+        # data['pp_tencent'] = document.get('pp_tencent', '{}')
+        # data['pp_iqiyi'] = document.get('pp_iqiyi', '{}')
+        # data['pp_youpeng'] = document.get('pp_youpeng', '{}')
+        # data['tencent'] = document.get('tencent', '-1')
+        # data['iqiyi'] = document.get('iqiyi', '-1')
+        # data['youpeng'] = document.get('youpeng', '-1')
+        # data['focus'] = document.get('focus', '').strip()
         return data
 
     def process(self):
@@ -181,96 +190,113 @@ class Video(object):
         for model in self.models:
             if model not in ['tv', 'movie']: continue
             self.logger.info('get data in database of model : {0}'.format(model))
-            documents = self._get_documents(self.collection, {'model': model}, 100)
+            documents = self._get_documents(self.collection, {'model': model}, 1000)
             self.logger.info('start handling data of model: {0}'.format(model))
             data[model] = self._process_documents(model, documents)
             self.logger.info('finish formating data of model {0} '.format(model))
         return data
 
     def _get_documents(self, collection, condition, num=10):
-        # documents = collection.find(condition).limit(num)
-        documents = collection.find(condition)
+        documents = collection.find(condition).limit(num)
+        # documents = collection.find(condition)
         return documents
 
     def _process_documents(self, model, documents):
         tag_stack = list()
         actor_stack = list()
         id_stack = list()
+        year_stack = list()
         director_stack = list()
         language_stack = list()
         country_stack = list()
+        score_stack = list()
         for document in documents:
-            data = self._handle_all_attr(document)
-            self.logger.debug('record: {0}'.format(data))
-            if data['enable'] in ['0', '-1'] or data['cover_id'] == '-1':
+            try:
+                data = self._handle_all_attr(document)
+            except Exception:
+                self.logger.error('handle all raw attr catch error')
+                self.logger.error('{0}'.format(traceback.print_exc()))
                 continue
-            if data['cover_id'] in ['q5ni28gov0wrnr3', '0efab4wwezfsswp', 'e6dvr0t33mtckia', '0k7ue81txhpmozo', '0t301lolceby6hu', '3yi89pocfvj3vkg']:
+                # raise Exception('handle attr catch error')
+            self.logger.debug('record: {0}'.format(data))
+            if data['enable'] in ['0', None] or data['cover_id'] is None:
+                continue
+            if data['cover_id'] in ['0k7ue81txhpmozo', '0t301lolceby6hu', '3yi89pocfvj3vkg']:
                 continue
             id_stack.append(data['cover_id'])
-            tag_stack.append(self.handle_tag_categorys(data))
-            actor_stack.append(self.handle_multi_label('actor', data))
-            director_stack.append(self.handle_multi_label('director', data))
-            language_stack.append(self.handle_multi_label('language', data))
-            country_stack.append(self.handle_multi_label('country', data))
-        v = DictVectorizer(sparse=False)
-        tag_stack = v.fit_transform(tag_stack)
-        tag_stack = DataFrame(tag_stack, index=id_stack, columns=v.feature_names_)
-        self.logger.debug('tag features of model {0}: {1}'.format(model, v.feature_names_))
-        actor_stack = v.fit_transform(actor_stack)
-        actor_stack = DataFrame(actor_stack, index=id_stack, columns=v.feature_names_)
-        self.logger.debug('actor features of model {0}: {1}'.format(model, v.feature_names_))
-        director_stack = v.fit_transform(director_stack)
-        director_stack = DataFrame(director_stack, index=id_stack, columns=v.feature_names_)
-        self.logger.debug('director features of model {0}: {1}'.format(model, v.feature_names_))
-        language_stack = v.fit_transform(language_stack)
-        language_stack = DataFrame(language_stack, index=id_stack, columns=v.feature_names_)
-        self.logger.debug('language features of model {0}: {1}'.format(model, v.feature_names_))
-        country_stack = v.fit_transform(country_stack)
-        country_stack = DataFrame(country_stack, index=id_stack, columns=v.feature_names_)
-        self.logger.debug('language features of model {0}: {1}'.format(model, v.feature_names_))
-        invalid_columns = [r'未知']
+            year_stack.append(data['year'])
+            score_stack.append(data['score'])
+            tag_stack.append(self.handle_multi_label(data['tag']))
+            actor_stack.append(self.handle_multi_label(data['actor']))
+            director_stack.append(self.handle_multi_label(data['director']))
+            language_stack.append(self.handle_multi_label(data['language']))
+            country_stack.append(self.handle_multi_label(data['country']))
+        tag_stack = self._feature_format(tag_stack, id_stack)
+        actor_stack = self._feature_format(actor_stack, id_stack)
+        director_stack = self._feature_format(director_stack, id_stack)
+        language_stack = self._feature_format(language_stack, id_stack)
+        country_stack = self._feature_format(country_stack, id_stack)
+        year_stack = Series(data=year_stack, index=id_stack)
+        score_stack = Series(data=score_stack, index=id_stack)
+        self.logger.debug('tag features of model {0}: {1}'.format(model, tag_stack.columns))
+        self.logger.debug('actor features of model {0}: {1}'.format(model, actor_stack.columns))
+        self.logger.debug('director features of model {0}: {1}'.format(model, director_stack.columns))
+        self.logger.debug('language features of model {0}: {1}'.format(model, language_stack.columns))
+        self.logger.debug('language features of model {0}: {1}'.format(model, country_stack.columns))
+        try:
+            self._column_alias_clean(language_stack, self.tran_alias_label_dict.get('language', dict()), self.outliers_list.get('language', list()))
+            self._column_alias_clean(country_stack, self.tran_alias_label_dict.get('country', dict()), self.outliers_list.get('country', list()))
+        except Exception:
+            self.logger.error('clean label get error')
+            self.logger.error('{0}'.format(traceback.print_exc()))
+        invalid_columns = [u'未知', u'不详']
         for data in [tag_stack, actor_stack, director_stack, language_stack, country_stack]:
-            data.drop(invalid_columns, inplace=True, axis=1, errors='ignore')
+            drop_label = set(invalid_columns).intersection(set(data.columns))
+            data.drop(drop_label, inplace=True, axis=1)
+            # print data.columns
         return {'tag': tag_stack, 'actor': actor_stack,
                 'director': director_stack, 'language': language_stack,
-                'country': country_stack}
+                'country': country_stack, 'year': year_stack, 'score': score_stack}
 
-    def handle_tag_categorys(self, record):
-        tag = record['tag']
-        categorys = record['categorys']
-        tag = tag.split(r'/')
-        data = dict()
-        for index in categorys:
-            data[index] = 1
-        # caution : not match pattern
-        same_data_size = len(set(tag) & set(categorys))
-        for index in set(tag) - set(categorys):
-            try:
-                data[index] = self._weight_tune(tag.index(index) + 1 - same_data_size)
-            except Exception, e:
-                print index
-                print tag.index(index)
-                print same_data_size
-                print tag
-                print categorys
-                raise
-        return data
+    def _column_alias_clean(self, frame, tran_alias_dict, outliers_list):
+        for stand_label, alias_label in tran_alias_dict.iteritems():
+            self._frame_column_merge(frame, alias_label, stand_label)
+        drop_label = set(tran_alias_dict.values() + outliers_list).intersection(frame.columns)
+        frame.drop(drop_label, inplace=True, axis=1)
 
-    def handle_multi_label(self, key, record):
-        record = record[key].split(r'/')
-        if key == 'actor':
-            record = record[:7]
+    def _frame_column_merge(self, frame, alias_label, standard_label):
+        if standard_label not in frame.columns:
+            raise Exception('{0} not in frame : {1}'.format(standard_label, frame.columns))
+        if alias_label in frame.columns and standard_label in frame.columns:
+            f = lambda row: row[alias_label] if row[standard_label] == 0 else row[standard_label]
+            frame[standard_label] = frame.apply(f, axis=1)
+
+    def _feature_format(self, data_stack, id_stack):
+        '''
+        data_statck: list
+            [dict(), dict(), dict()]: dict => label:weight
+        id_stack: list
+            [id, id, id]: program id
+        '''
+        tmp = list()
+        for record in data_stack:
+            tmp.extend(record.keys())
+        label_list = set(tmp)
+        data_matrix = DataFrame(data=np.zeros((len(data_stack), len(label_list))), columns=list(label_list), index=id_stack)
+        for index in range(len(data_stack)):
+            data_matrix.ix[id_stack[index], data_stack[index].keys()] = data_stack[index].values()
+        return data_matrix
+
+    def handle_multi_label(self, label_list):
         data = dict()
-        for index in record:
-            data[index] = self._weight_tune(record.index(index) + 1)
+        if label_list in [None, ['']]:
+            return data
+        for id, index in enumerate(label_list):
+            data[index] = self._weight_tune(id + 1)
             # data[index] = record.index(index)
         return data
 
     def _weight_tune(self, index):
-        '''
-        if index <= 0:
-            raise ValueError
-        '''
         return np.exp(1 - np.sqrt(index))
 
 
@@ -295,17 +321,15 @@ def main(config_file, data_file_path):
     print 'finish processing data'
     # print('store data to file: {0}'.format(data_file_path))
     for model in models:
-        if model not in ['tv', 'movie']: continue
+        if model not in ['tv', 'movie']:
+            continue
         with open(data_file_path + r'/' + model + r'.dat', 'wb') as f:
             pickle.dump(data[model], f, protocol=True)
     print("stored data to path: {0}".format(data_file_path))
     '''
     print 'save data to excel'
-    for model, values in data.items():
-        print values.shape
-        print model
+    for (model, values) in data.iteritems():
         values.to_excel('../data/{0}_data.xlsx'.format(model))
-    print 'Finished'
     '''
     return data
 
