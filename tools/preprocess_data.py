@@ -1,6 +1,24 @@
 # encoding:utf-8
-# get data id group by model
-# and save to local file '../data/id.dat'
+"""
+============================================================
+Fetch and clean media data before calculation of similarity
+============================================================
+
+fetch data from mongodb.
+use charactor  'tag', 'director', 'country', 'actor', 'language', 'year', 'score'
+
+Script output:
+    data/{model_name}.dat
+        local clean data for calculation to reading directly from locals
+        make local cache since frequence of similarity calculation
+        be greater than of the scripts that fetch and clean media data
+
+Created by:
+    yonggang Huang
+In:
+    03-31-2017
+"""
+
 from pymongo import MongoClient
 import logging
 from datetime import datetime, date, timedelta
