@@ -40,7 +40,7 @@ class Video(object):
     def __init__(self):
         self.model_features = dict()
         self.features_trans = dict()
-        self.logger = self.set_logger('../log')
+        self.logger = self.set_logger('log')
         self.init_model_features()
         self.pat = re.compile(r'\s*[/\\|]\s*')
         self.models = ['movie', 'tv',
@@ -254,6 +254,7 @@ class Video(object):
         director_stack = self._feature_format(director_stack, id_stack)
         language_stack = self._feature_format(language_stack, id_stack)
         country_stack = self._feature_format(country_stack, id_stack)
+        id_stack = Series(data=id_stack, index=id_stack)  # for remove duplicated ids
         year_stack = Series(data=year_stack, index=id_stack)
         score_stack = Series(data=score_stack, index=id_stack)
         self.logger.debug('tag features of model {0}: {1}'.format(model, tag_stack.columns))
@@ -264,6 +265,10 @@ class Video(object):
         try:
             self._column_alias_clean(language_stack, self.tran_alias_label_dict.get('language', dict()), self.outliers_list.get('language', list()))
             self._column_alias_clean(country_stack, self.tran_alias_label_dict.get('country', dict()), self.outliers_list.get('country', list()))
+            # drop duplicated id
+            duplicated_id_list = id_stack.index[id_stack.duplicated()]
+            for stack in [tag_stack, actor_stack, director_stack, language_stack, country_stack, year_stack, score_stack]:
+                stack.drop(labels=duplicated_id_list, axis=0, inplace=True)
         except Exception:
             self.logger.error('clean label get error')
             self.logger.error('{0}'.format(traceback.print_exc()))
@@ -353,8 +358,8 @@ def main(config_file, data_file_path):
 
 
 if __name__ == '__main__':
-    config_file = '../etc/config.ini'
-    data_file_path = '../data'
+    config_file = 'etc/config.ini'
+    data_file_path = 'data'
     data = main(config_file, data_file_path)
     # print data['tv']
     print 'Finished'
