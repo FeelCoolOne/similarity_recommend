@@ -18,6 +18,8 @@ In:
 """
 from pandas import DataFrame, __version__
 from numpy.linalg import norm
+from numpy.random import permutation, randint
+from numpy import zeros, absolute
 from distutils.version import LooseVersion
 import warnings
 import traceback
@@ -29,6 +31,7 @@ class Sim(object):
         self.out_record_num = 20
         self.weight = weight
         self.min_num_common_feature = 2
+        self.douban_std_rec_num = 10
         self.indexs = self.data['actor'].index
         self._features_sim = dict()
         self._init_data()
@@ -66,7 +69,7 @@ class Sim(object):
         ------
         pandas.DataFrame, distance between samples in data array
         '''
-        from numpy import absolute
+
         if len(data.shape) == 1:
             index = data.index
             tmp = absolute(data.values.reshape(data.size, 1) - data.values)
@@ -102,7 +105,6 @@ class Sim(object):
         self.weight.drop(labels=invalid_feature_column, axis=1, inplace=True)
 
     def process(self):
-        from numpy import zeros
         data = self._features_sim
         n_sample = len(self.indexs)
         all_sim = DataFrame(data=zeros((n_sample, n_sample)), index=self.indexs, columns=self.indexs)
@@ -139,8 +141,6 @@ class Sim(object):
         weight: dict
         score: float
         '''
-        from numpy.random import permutation, randint
-        from numpy import zeros
         if features_sim is None:
             features_sim = self._features_sim
         if patch_size > len(train_dataset):
@@ -195,7 +195,6 @@ class Sim(object):
         return self.weight, self.score
 
     def _calculate_metric(self, stand_dict, similar_all):
-        douban_std_rec_num = 10
         same_size = 0
         douban_filtered_total_size = 0
         for cid, std_rec in stand_dict.iteritems():
@@ -208,8 +207,8 @@ class Sim(object):
                 std_rec = []
             same_size += len(set(output).intersection(set(std_rec)))
             douban_filtered_total_size += len(std_rec)
-        douban_filter_miss_num = douban_std_rec_num * len(stand_dict) - douban_filtered_total_size
-        score = (same_size + douban_filter_miss_num / 2.000) / (douban_std_rec_num * len(stand_dict))
+        douban_filter_miss_num = self.douban_std_rec_num * len(stand_dict) - douban_filtered_total_size
+        score = (same_size + douban_filter_miss_num / 2.000) / (self.douban_std_rec_num * len(stand_dict))
         return score
 
     def _calculate_output(self, cover_id, similar_frame, debug=False):

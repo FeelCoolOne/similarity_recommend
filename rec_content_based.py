@@ -60,15 +60,22 @@ def init_client(config_file_path):
         return client
 
 
-def main(data_file_path, config_file):
+def main(data_file_path, config_file, search=False):
     global logger
-    weight = {'tag': 20, 'actor': 10,
-              'director': 10000, 'language': 10,
-              'country': 200}
+    weight = {'movie': {'language': 0.8, 'country': 0.1,
+                        'tag': 0.5, 'actor': 0.1, 'director': 0.8,
+                        'score': 1, 'year': 0.4},
+              'tv': {'language': 0.5, 'country': 0.8,
+                     'tag': 0.9, 'actor': 0.1, 'director': 0.1,
+                     'score': 0.4, 'year': 0.5}}
     models = ['movie', 'tv',
               'sports', 'entertainment', 'variety',
               'education', 'doc', 'cartoon']
-
+    if search is True:
+        logger.info('config: Search weight from douban')
+    else:
+        logger.info('config: Use history weight')
+        logger.info('History weight: {0}'.format(weight))
     logger.info('Start')
     con = init_client(config_file)
     key_pattern = 'AlgorithmsCommonBid_Cchiq3Test:SIM:ITI:'
@@ -80,35 +87,35 @@ def main(data_file_path, config_file):
         with open(data_file_path + r'/' + model + r'.dat', 'rb') as f:
             data = pickle.load(f)
         logger.info('load model {0} data success'.format(model))
-        with open(data_file_path + r'/' + model + r'_douban.dat', 'rb') as f:
-            train_dataset = pickle.load(f)
-        logger.info('load model {0} data from douban success'.format(model))
         if len(data) != 7:
             logger.error('Error: read data of model {0}, model feature data be not matched{1}'.format(model, len(data.keys())))
             raise Exception('model feature data be not matched')
         if len(data['director'].index) < 500:
             logger.error('Error: read data of model {0}, num of record wrong'.format(model))
             raise Exception('model data be wrong')
-        logger.info('start process data of model : {0}'.format(model))
+        logger.info('Start process data of model : {0}'.format(model))
         logger.info('data feature: {0}'.format(data.keys()))
-        logger.info('start init sim handler')
+        logger.info('Start init sim handler')
         s = Sim(data)
-        logger.info('sim handler success')
-        logger.info('start search weight ...')
-        weight, score = s.weight_search(train_dataset, patch_size=200, verbose=True)
-        logger.info('weight search finish, socre: {0}, weight: {1}'.format(score, weight))
+        logger.info('Success: initial sim handler ')
+        if search is True:
+            with open(data_file_path + r'/' + model + r'_douban.dat', 'rb') as f:
+                train_dataset = pickle.load(f)
+            logger.info('Success: load model {0} data from douban '.format(model))
+            logger.info('Start search weight ...')
+            weight, score = s.weight_search(train_dataset, patch_size=200, verbose=True)
+            logger.info('Finished: weight search, socre: {0}, weight: {1}'.format(score, weight))
+        else:
+            s.set_weight(weight[model])
 
-        # s.set_weight(weight)
         count = 0
         try:
             for cover_id, result in s.process():
                 logger.debug('{0}  {1}'.format(cover_id, result))
-                print cover_id, result
-                # con.set(key_pattern + cover_id, json.dumps(result))
-                # con.expire(key_pattern + cover_id, 1296000)
+                # print cover_id, result
+                con.set(key_pattern + cover_id, json.dumps(result))
+                con.expire(key_pattern + cover_id, 1296000)
                 count += 1
-                if count == 10:
-                    raise()
         except Exception, e:
             logger.error('catched error :{0}, processed num: {1}, model: {2}'.format(e, count, model))
             traceback.print_exc()
@@ -118,6 +125,10 @@ def main(data_file_path, config_file):
 
 
 if __name__ == '__main__':
+    if len(sys.argv) != 2:
+        sys.stderr.write("Usage: rec_content_based <train/work>")
+        exit(-1)
     data_file_path = r'./data'
     config_file = r'./etc/config.ini'
-    main(data_file_path, config_file)
+    search_flag = True if sys.argv[1] == 'train' else False
+    main(data_file_path, config_file, search_flag)
