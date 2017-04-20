@@ -60,7 +60,31 @@ def init_client(config_file_path):
         return client
 
 
-def main(data_file_path, config_file, search=False):
+def value_fix(value, prefix_map):
+    '''
+        add prefix for every item's value
+
+        Parameters:
+        ----------
+        value: {key1:value1, key2:value2,...}, dict
+        prefix_map: {key:prefix,...}, dict\
+
+        Returns:
+        --------
+        new_value:  {key1:value1, key2:value2,...}, dict
+    '''
+    result = value
+    for key, value in result['Results'].iteritems():
+        prefix = prefix_map.get(key, None)
+        # filter out non-prefix record in recommend result
+        if prefix is None:
+            result['Results'].pop(key, None)
+            continue
+        result['Results'][key] = prefix + ':' + result['Results'][key]
+    return result
+
+
+def main(data_file_path, config_file, mode=False):
     global logger
     weight = {'movie': {'language': 0.8, 'country': 0.1,
                         'tag': 0.5, 'actor': 0.1, 'director': 0.8,
@@ -71,12 +95,17 @@ def main(data_file_path, config_file, search=False):
     models = ['movie', 'tv',
               'sports', 'entertainment', 'variety',
               'education', 'doc', 'cartoon']
-    if search is True:
+    if mode is 'search':
         logger.info('config: Search weight from douban')
     else:
         logger.info('config: Use history weight')
         logger.info('History weight: {0}'.format(weight))
-    logger.info('Start')
+        if mode is 'prefix':
+            logger.info('load prefix map from local file')
+            with open(data_file_path + r'/' + 'prefix_map' + r'.dat', 'rb') as f:
+                prefixs = pickle.load(f)
+
+    logger.info('start')
     con = init_client(config_file)
     key_pattern = 'AlgorithmsCommonBid_Cchiq3Test:SIM:ITI:'
 
@@ -98,13 +127,14 @@ def main(data_file_path, config_file, search=False):
         logger.info('Start init sim handler')
         s = Sim(data)
         logger.info('Success: initial sim handler ')
-        if search is True:
+        if mode is 'search':
             with open(data_file_path + r'/' + model + r'_douban.dat', 'rb') as f:
                 train_dataset = pickle.load(f)
             logger.info('Success: load model {0} data from douban '.format(model))
             logger.info('Start search weight ...')
             weight, score = s.weight_search(train_dataset, patch_size=200, verbose=True)
             logger.info('Finished: weight search, socre: {0}, weight: {1}'.format(score, weight))
+            continue
         else:
             s.set_weight(weight[model])
 
@@ -113,9 +143,14 @@ def main(data_file_path, config_file, search=False):
             for cover_id, result in s.process():
                 logger.debug('{0}  {1}'.format(cover_id, result))
                 # print cover_id, result
-                con.set(key_pattern + cover_id, json.dumps(result))
-                con.expire(key_pattern + cover_id, 1296000)
-                count += 1
+                if mode is 'prefix':
+                    con.set(key_pattern + cover_id, json.dumps(value_fix(result, prefixs)))
+                    con.expire(key_pattern + cover_id, 1296000)
+                    count += 1
+                elif mode is 'work':
+                    con.set(key_pattern + cover_id, json.dumps(result))
+                    con.expire(key_pattern + cover_id, 1296000)
+                    count += 1
         except Exception, e:
             logger.error('catched error :{0}, processed num: {1}, model: {2}'.format(e, count, model))
             traceback.print_exc()
@@ -126,9 +161,11 @@ def main(data_file_path, config_file, search=False):
 
 if __name__ == '__main__':
     if len(sys.argv) != 2:
-        sys.stderr.write("Usage: rec_content_based <train/work>")
+        sys.stderr.write("Usage: rec_content_based <train/work/prefix>")
         exit(-1)
     data_file_path = r'./data'
     config_file = r'./etc/config.ini'
-    search_flag = True if sys.argv[1] == 'train' else False
-    main(data_file_path, config_file, search_flag)
+    mode = sys.argv[1]
+    if mode not in ['train', 'work', 'prefix']:
+        raise ValueError('mode should be one of train/work/prefix ')
+    main(data_file_path, config_file, mode)

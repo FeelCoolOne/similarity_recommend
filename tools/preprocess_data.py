@@ -215,8 +215,8 @@ class Video(object):
         return data
 
     def _get_documents(self, collection, condition, num=10):
-        documents = collection.find(condition).limit(num)
-        # documents = collection.find(condition)
+        # documents = collection.find(condition).limit(num)
+        documents = collection.find(condition)
         return documents
 
     def _process_documents(self, model, documents):
@@ -258,10 +258,15 @@ class Video(object):
         year_stack = Series(data=year_stack, index=id_stack)
         score_stack = Series(data=score_stack, index=id_stack)
         self.logger.debug('tag features of model {0}: {1}'.format(model, tag_stack.columns))
+        self.logger.debug('tag size of model {0}: {1}'.format(model, len(tag_stack.index)))
         self.logger.debug('actor features of model {0}: {1}'.format(model, actor_stack.columns))
+        self.logger.debug('actor size of model {0}: {1}'.format(model, len(actor_stack.index)))
         self.logger.debug('director features of model {0}: {1}'.format(model, director_stack.columns))
+        self.logger.debug('director size of model {0}: {1}'.format(model, len(director_stack.index)))
         self.logger.debug('language features of model {0}: {1}'.format(model, language_stack.columns))
-        self.logger.debug('language features of model {0}: {1}'.format(model, country_stack.columns))
+        self.logger.debug('language size of model {0}: {1}'.format(model, len(language_stack.index)))
+        self.logger.debug('country features of model {0}: {1}'.format(model, country_stack.columns))
+        self.logger.debug('country size of model {0}: {1}'.format(model, len(country_stack.index)))
         try:
             self._column_alias_clean(language_stack, self.tran_alias_label_dict.get('language', dict()), self.outliers_list.get('language', list()))
             self._column_alias_clean(country_stack, self.tran_alias_label_dict.get('country', dict()), self.outliers_list.get('country', list()))
@@ -344,8 +349,8 @@ def main(config_file, data_file_path):
     print 'finish processing data'
     # print('store data to file: {0}'.format(data_file_path))
     for model in models:
-        if model not in ['tv', 'movie']:
-            continue
+        for feat in data[model]:
+            print('feature {0} of model {1} has {2} records '.format(feat, model, len(data[model][feat].index)))
         with open(data_file_path + r'/' + model + r'.dat', 'wb') as f:
             pickle.dump(data[model], f, protocol=True)
     print("stored data to path: {0}".format(data_file_path))

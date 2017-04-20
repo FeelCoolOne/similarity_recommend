@@ -42,8 +42,8 @@ def get_documents(collection, model, num=10):
 
 
 def main():
-    config_file = '../etc/config.ini'
-    data_file_path = '../data'
+    config_file = './etc/config.ini'
+    data_file_path = './data'
     cf = ConfigParser.ConfigParser()
     cf.read(config_file)
     address = cf.get('mongo', 'address')
@@ -52,10 +52,11 @@ def main():
     password = cf.get('mongo', 'password')
     database = cf.get('mongo', 'database')
     collection = cf.get('mongo', 'collection')
-    coll = connect_mongodb(address, port, username, password, database, collection)
+    coll = connect_mongodb(address, port, username,
+                           password, database, collection)
     models = ['movie', 'tv',
-                       'sports', 'entertainment', 'variety',
-                       'education', 'doc', 'cartoon']
+              'sports', 'entertainment', 'variety',
+              'education', 'doc', 'cartoon']
     for model in models:
         id_map = dict()
         d_result = dict()

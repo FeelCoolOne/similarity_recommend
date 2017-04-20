@@ -120,7 +120,7 @@ class Sim(object):
         search weight for every feature one by one, by comparing the ratio of same id between
         the outputs and douban'recommends
 
-        parameters
+        Parameters
         ----------
         features_sim: dict
             key->feature name, value->feature similari matrix, pandas.DataFrame
@@ -136,7 +136,7 @@ class Sim(object):
         verbose: bool, default False
             print the search infomation for trace process track
 
-        outputs
+        Returns
         ----------
         weight: dict
         score: float
