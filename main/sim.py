@@ -213,7 +213,7 @@ class Sim(object):
 
     def _calculate_output(self, cover_id, similar_frame, debug=False):
         if LooseVersion(__version__) >= LooseVersion('0.17.0.'):
-            result = similar_frame.sort_values(by=cover_id, ascending=True, axis=0)
+            result = similar_frame.sort_values(by=cover_id, ascending=True, axis=0)[cover_id]
         else:
             result = similar_frame.sort(columns=cover_id, ascending=True, axis=0)[cover_id]
         if debug is True:

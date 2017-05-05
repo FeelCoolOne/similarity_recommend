@@ -95,7 +95,7 @@ def main(data_file_path, config_file, mode=False):
     models = ['movie', 'tv',
               'sports', 'entertainment', 'variety',
               'education', 'doc', 'cartoon']
-    if mode is 'search':
+    if mode == 'search':
         logger.info('config: Search weight from douban')
     else:
         logger.info('config: Use history weight')
@@ -127,7 +127,7 @@ def main(data_file_path, config_file, mode=False):
         logger.info('Start init sim handler')
         s = Sim(data)
         logger.info('Success: initial sim handler ')
-        if mode is 'search':
+        if mode == 'search':
             with open(data_file_path + r'/' + model + r'_douban.dat', 'rb') as f:
                 train_dataset = pickle.load(f)
             logger.info('Success: load model {0} data from douban '.format(model))
@@ -143,11 +143,11 @@ def main(data_file_path, config_file, mode=False):
             for cover_id, result in s.process():
                 logger.debug('{0}  {1}'.format(cover_id, result))
                 # print cover_id, result
-                if mode is 'prefix':
+                if mode == 'prefix':
                     con.set(key_pattern + cover_id, json.dumps(value_fix(result, prefixs)))
                     con.expire(key_pattern + cover_id, 1296000)
                     count += 1
-                elif mode is 'work':
+                elif mode == 'work':
                     con.set(key_pattern + cover_id, json.dumps(result))
                     con.expire(key_pattern + cover_id, 1296000)
                     count += 1
@@ -167,5 +167,5 @@ if __name__ == '__main__':
     config_file = r'./etc/config.ini'
     mode = sys.argv[1]
     if mode not in ['train', 'work', 'prefix']:
-        raise ValueError('mode should be one of train/work/prefix ')
+        raise ValueError('mode should be one of train/work/prefix')
     main(data_file_path, config_file, mode)
