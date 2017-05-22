@@ -168,16 +168,28 @@ class Video(object):
             score = None
         return score
 
+    def _filter_duration(self, document):
+        duration = 0
+        if document['tencent'] == 1 and 'duration' in document['pp_tencent']:
+            duration = document['pp_tencent']['duration']
+        elif document['youpeng'] == 1 and 'duration' in document['pp_youpeng']:
+            duration = document['pp_youpeng']['duration']
+        elif document['iqiyi'] == 1 and 'duration' in document['pp_iqiyi']:
+            duration = document['pp_iqiyi']['duration']
+        else:
+            duration = document['duration'] if 'duration' in document else None
+        return duration
+
     def _handle_all_attr(self, document):
         data = dict()
         document = dict(document)
         data['cover_id'] = self._filter_id(document)
         # data['model'] = document.get('model', none_label)
         # data['alias'] = document.get('alias', none_label)
-        # data['duration'] = document.get('duration', -1)
         # data['episodes'] = document.get('episodes', -1)
         # data['enname'] = document.get('enName', none_label)
         # data['name'] = document.get('name', none_label).strip()
+        data['duration'] = self._filter_duration(document)
         data['director'] = self.pat.split(document.get('director').strip())  # list
         data['actor'] = self.pat.split(document.get('cast', '').strip())[:7]  # list
         data['writer'] = self.pat.split(document.get('writer', '').strip())  # list
