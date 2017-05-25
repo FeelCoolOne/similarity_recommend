@@ -5,7 +5,7 @@ edit ./etc/config.ini
 
 ##### step 2
 ``` 
-python ./tools/preprocess_data.py
+python ./tools/preprocess.py
 ``` 
 > get data from mongodb and format
 
