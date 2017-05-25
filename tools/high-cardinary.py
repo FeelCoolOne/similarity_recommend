@@ -1,4 +1,23 @@
-# encoding=utf-8
+# encoding:utf-8
+"""
+============================================================
+Fetch and clean media data before calculation of similarity
+============================================================
+
+fetch data from mongodb.
+use charactor  'language', 'country', 'writer', 'director', 'tag', 'actor', 'year', 'score'
+
+Script output:
+    data/{model_name}.dat
+        local clean data for calculation to reading directly from locals
+        make local cache since frequence of similarity calculation
+        be greater than of the scripts that fetch and clean media data
+
+Created by:
+    yonggang Huang
+In:
+    05-25-2017
+"""
 
 from pymongo import MongoClient
 import ConfigParser
@@ -268,14 +287,18 @@ def main(config_file, num=1000):
         tmp = all_model_data_df['actor'].apply(lambda x: '|'.join(map(lambda y: '%s' % trans_map.get(y, ''), x.split('|'))))
         actor_df = multi_label_format(tmp)
         train_tmp.extend([tag_df, actor_df, pd.get_dummies(year_df, prefix='year'), pd.get_dummies(score_df, prefix='score')])
-        size_per_feature_dict = [(k, v.shape[-1]) for k, v in zip(['language', 'country', 'writer', 'director',
-                                                                   'tag', 'actor', 'year', 'score'], train_tmp)]
+        size_per_feat_dict = [(k, v.shape[-1]) for k, v in zip(['language', 'country', 'writer', 'director',
+                                                                'tag', 'actor', 'year', 'score'], train_tmp)]
         train_tmp.append(data_df['cover_id'])
         train_df = pd.concat(train_tmp, axis=1)
-        return train_df, size_per_feature_dict
+        train_df.drop_duplicates(subset=['cover_id'], inplace=True)
+        yield model, {'values': train_df, 'property': size_per_feat_dict}
 
 
 if __name__ == '__main__':
     config_file = '../etc/config.ini'
-    _, hehe = main(config_file)
-    print hehe
+    data_file_path = '../data'
+    for model, block in main(config_file):
+        with open(data_file_path + r'/' + model + r'.dat', 'wb') as f:
+            pickle.dump(block, f, protocol=True)
+    print("stored data to path: {0}".format(data_file_path))

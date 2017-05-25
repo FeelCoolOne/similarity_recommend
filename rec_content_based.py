@@ -4,14 +4,14 @@
 calculation of similarity
 ==========================
 
-use charactor  'tag', 'director', 'country',
-    'actor', 'language', 'year', 'score'
+use charactor 'language', 'country', 'writer', 'director', 'tag', 'actor', 'year', 'score'
+
 To redis it is that result of calculation be saved
 
 Created by:
     yonggang Huang
 In:
-    03-31-2017
+    05-25-2017
 """
 import logging
 import redis
@@ -86,15 +86,14 @@ def value_fix(value, prefix_map):
 
 def main(data_file_path, config_file, mode=False):
     global logger
-    weight = {'movie': {'language': 0.8, 'country': 0.1,
-                        'tag': 0.5, 'actor': 0.1, 'director': 0.8,
-                        'score': 1, 'year': 0.4},
-              'tv': {'language': 0.5, 'country': 0.8,
-                     'tag': 0.9, 'actor': 0.1, 'director': 0.1,
-                     'score': 0.4, 'year': 0.5}}
+    features = ['language', 'country', 'writer', 'director', 'tag', 'actor', 'year', 'score']
+    weight = {'movie': [0.8, 0.1, 0.4, 0.8, 0.5, 0.1, 0.4, 1],
+              'tv': [0.5, 0.8, 0.5, 0.1, 0.9, 0.1, 0.5, 0.4]}
+
     models = ['movie', 'tv',
               'sports', 'entertainment', 'variety',
               'education', 'doc', 'cartoon']
+
     if mode == 'search':
         logger.info('config: Search weight from douban')
     else:
@@ -106,41 +105,31 @@ def main(data_file_path, config_file, mode=False):
                 prefixs = pickle.load(f)
 
     logger.info('start')
+
     con = init_client(config_file)
     key_pattern = 'AlgorithmsCommonBid_Cchiq3Test:SIM:ITI:'
 
     for model in models:
-        if model not in ['tv', 'movie']:
-            continue
-        data = dict()
+        if model not in ['tv', 'movie']: continue
         with open(data_file_path + r'/' + model + r'.dat', 'rb') as f:
             data = pickle.load(f)
         logger.info('load model {0} data success'.format(model))
-        if len(data) != 7:
-            logger.error('Error: read data of model {0}, model feature data be not matched{1}'.format(model, len(data.keys())))
-            raise Exception('model feature data be not matched')
-        if len(data['director'].index) < 500:
-            logger.error('Error: read data of model {0}, num of record wrong'.format(model))
-            raise Exception('model data be wrong')
         logger.info('Start process data of model : {0}'.format(model))
-        logger.info('data feature: {0}'.format(data.keys()))
-        logger.info('Start init sim handler')
-        s = Sim(data)
-        logger.info('Success: initial sim handler ')
         if mode == 'search':
             with open(data_file_path + r'/' + model + r'_douban.dat', 'rb') as f:
                 train_dataset = pickle.load(f)
             logger.info('Success: load model {0} data from douban '.format(model))
             logger.info('Start search weight ...')
-            weight, score = s.weight_search(train_dataset, patch_size=200, verbose=True)
-            logger.info('Finished: weight search, socre: {0}, weight: {1}'.format(score, weight))
-            continue
-        else:
-            s.set_weight(weight[model])
-
+            hehe = map(lambda x: x[1], data['property'])
+            s = Sim(index=data['values']['cover_id'], feat_properties=hehe, std_output=train_dataset)
+            s.fit(data['values'][features])
+            print s.weight
+            break
+        s = Sim(weight=weight[model], index=data['values']['cover_id'], feat_properties=data['property'])
+        s.fit(data['values'][features])
         count = 0
         try:
-            for cover_id, result in s.process():
+            for cover_id, result in s.transform():
                 logger.debug('{0}  {1}'.format(cover_id, result))
                 # print cover_id, result
                 if mode == 'prefix':

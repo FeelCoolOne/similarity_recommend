@@ -30,14 +30,19 @@ if __name__ == "__main__":
     language = DataFrame(rand(4, 3), index=['a', 'b', 'c', 'd'], columns=['d1', 'd2', 'd3'])
     score = Series(rand(4), index=['a', 'b', 'c', 'd'])
     year = Series(rand(4), index=['a', 'b', 'c', 'd'])
-    douban_test = {'a': ['f', 'b', 'c', 'm'],
-                   'b': ['f', 'b', 'c', 'm'],
-                   'c': ['f', 'b', 'c', 'm'],
-                   'd': ['f', 'b', 'c', 'm'],
-                   'u': ['f', 'b', 'c', 'm'], }
-    sim = Sim({'tag': tag, 'actor': actor, 'director': director, 'country': country, 'year': year, 'language': language, 'score': score}, weight)
-    '''
-    for index, result in sim.process():
+    douban_test = {'a1': ['a3', 'a', 'a1', 'a2'],
+                   'a2': ['a3', 'a', 'a1', 'a2'],
+                   'a3': ['a3', 'a', 'a1', 'a2'],
+                   'a4': ['a3', 'a', 'a1', 'a2'],
+                   'a5': ['a3', 'a', 'a1', 'a2'],
+                   'a6': ['a1', 'a2', 'a4', 'a3']}
+    # work mode
+    sim = Sim(weight=[.3, .4, .3, .6, .4], index=['a1', 'a2', 'a3', 'a4', 'a5', 'a6'], feat_properties=[3, 4, 5, 6, 4])
+    sim.fit(rand(6, 22) * 10)
+    for index, result in sim.transform():
         print index, result
-    '''
-    print sim.weight_search(douban_test, verbose=True)
+
+    # weight search mode
+    sim = Sim(index=['a1', 'a2', 'a3', 'a4', 'a5', 'a6'], feat_properties=[3, 4, 5, 6, 4], std_output=douban_test)
+    sim.fit(rand(6, 22) * 10)
+    print sim.weight, sim.score

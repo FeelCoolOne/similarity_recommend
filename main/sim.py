@@ -5,8 +5,7 @@ calculation of similarity
 ==========================
 
 charactor:
-    'tag', 'director', 'country',
-    'actor', 'language', 'year', 'score'
+    'language', 'country', 'writer', 'director', 'tag', 'actor', 'year', 'score'
 
 feature:
     weight for character can be search from douban standard recommends
@@ -14,49 +13,76 @@ feature:
 Created by:
     yonggang Huang
 In:
-    03-31-2017
+    05-25-2017
 """
-from pandas import DataFrame, __version__
+
 from numpy.linalg import norm
 from numpy.random import permutation, randint
-from numpy import zeros, absolute
-from distutils.version import LooseVersion
+from lazysorted import LazySorted
 import warnings
 import traceback
 
 
+def _handle_zeros_in_scale(scale, copy=True):
+    ''' Makes sure that whenever scale is zero, we handle it correctly.
+    This happens in most scalers when we have constant features.'''
+
+    # if we are fitting on 1D arrays, scale might be a scalar
+    from numpy import isscalar, ndarray
+    if isscalar(scale):
+        if scale == .0:
+            scale = 1.
+        return scale
+    elif isinstance(scale, ndarray):
+        if copy:
+            # New array to avoid side-effects
+            scale = scale.copy()
+        scale[scale == 0.0] = 1.0
+        return scale
+
+
 class Sim(object):
-    def __init__(self, data, weight=None):
-        self.data = data
-        self.out_record_num = 20
-        self.weight = weight
-        self.min_num_common_feature = 2
+
+    def __init__(self, weight=None, index=None, feat_properties=None, std_output=None):
+        self._weight = weight
+        self._indexs = index
+        self._feat_properties = feat_properties
+        self._std_output = std_output
+        self._out_record_num = 20
         self.douban_std_rec_num = 10
-        self.indexs = self.data['actor'].index
-        self._features_sim = dict()
-        self._init_data()
-        # self._filter_label()
 
-    def set_weight(self, weight):
-        self.weight = weight
+    @property
+    def weight(self):
+        return self._weight
 
-    def _init_data(self):
-        from numpy import max, log10, absolute
-        try:
-            for key in self.data.keys():
-                if key in ['tag', 'country', 'language', 'director']:
-                    self._features_sim[key] = absolute(1 - self._calculate_cosine_similarity(self.data[key]))
-                elif key in ['score', 'year', 'actor']:
-                    sim = self._calculate_euclidean_distance(self.data[key])
-                    # feature scaling [0, 1]
-                    self._features_sim[key] = sim.where(sim <= 0, log10(sim + 1)) / log10(max(sim + 1))
+    @weight.setter
+    def weight(self, new_weight):
+        self._weight = new_weight
 
-                    # self._features_sim[key] = (sim - min(sim)) / (max(sim) - min(sim))
-                else:
-                    raise KeyError('error feature index')
-        except Exception:
-            traceback.print_exc()
-            raise Exception("Catch error during feature similarity")
+    @property
+    def indexs(self):
+        return self._indexs
+
+    @indexs.setter
+    def indexs(self, new_indexs):
+        from numpy import array
+        if isinstance(new_indexs, array):
+            self._indexs = new_indexs
+        elif isinstance(new_indexs, list):
+            self._indexs = array(new_indexs)
+        else:
+            raise TypeError('type must be numpy.array')
+
+    def _check_property(self, data, attr_name):
+        if attr_name == 'data':
+            from numpy import sum, array
+            total = sum(array(self._feat_properties))
+            n_col = data.shape[-1]
+            if total != n_col:
+                return False
+            return True
+        else:
+            raise ValueError('attr_name not fit')
 
     def _calculate_euclidean_distance(self, data):
         '''
@@ -69,53 +95,62 @@ class Sim(object):
         ------
         pandas.DataFrame, distance between samples in data array
         '''
+        from numpy import shape, zeros
+        m, _ = shape(data)
+        distance = zeros((m, m))
+        for i in range(m):
+            distance[i, :] = norm(data - data[i, :], axis=1)
+        return distance
 
-        if len(data.shape) == 1:
-            index = data.index
-            tmp = absolute(data.values.reshape(data.size, 1) - data.values)
-            return DataFrame(data=tmp, columns=index, index=index)
-        elif len(data.shape) == 2:
-            tmp = {cid: norm(data - data.ix[cid, :], axis=1) for cid in data.index}
-            return DataFrame(data=tmp, index=data.index)
-        else:
-            raise TypeError('data should be 1 dimension or 2 dimension')
-
-    def _calculate_cosine_similarity(self, dataset):
+    def _calculate_cosine_similarity(self, data):
         '''
         calculation cosine similarity between samples in dataset
         -----------
 
         Parameters:
-            dataset: pandas.DataFrame, shape: (num_sample, num_feature)
+            data: pandas.DataFrame, shape: (num_sample, num_feature)
 
         Return：
             array with shape (num_sample, num_sample)
         '''
-        # data = dataset
-        sample_norms = norm(dataset, axis=1)
-        XX = dataset.dot(dataset.T)
-        XX_norm = sample_norms.reshape(sample_norms.size, 1) * sample_norms
-        sim_array = XX / XX_norm
-        return sim_array
+        norms = norm(data, axis=1)
+        XX = data.dot(data.T)
+        XX_norm = norms.reshape(norms.size, 1) * norms
+        XX_norm = _handle_zeros_in_scale(XX_norm)
+        distance = XX / XX_norm
+        return distance
 
-    def _filter_label(self):
-        tmp = self.data.astype(bool).sum(axis=0)
-        invalid_feature_column = tmp.index[tmp < self.min_num_common_feature]
-        self.data.drop(labels=invalid_feature_column, axis=1, inplace=True)
-        self.weight.drop(labels=invalid_feature_column, axis=1, inplace=True)
+    def fit(self, X, y=None):
+        from numpy import ones, concatenate, arange, ndarray, array
+        if not self._check_property(X, attr_name='data'):
+            raise ValueError('X must match property')
+        if self._indexs is None:
+            warnings.warn('index is None, use origin numerical index default')
+            self._indexs = arange(X.shape[0])
+        if len(self._indexs) != X.shape[0]:
+            raise ValueError('X must match indexs')
+        if not isinstance(self._indexs, ndarray):
+            self._indexs = array(self._indexs)
+        if self._weight is None:
+            warnings.warn('without given weight, start search')
+            if not hasattr(self, '_std_output'):
+                raise Exception('std_output must not to be None')
+            self._weight, self.score = self.weight_search(X, self._std_output, verbose=False)
+        elif len(self._weight) != len(self._feat_properties):
+            raise Exception('weight must match feat properties')
+        self._weight = array(self._weight, dtype='float64')
+        weight = concatenate([tmp * w for tmp, w in zip(map(lambda x: ones(x), self._feat_properties), self._weight)])
+        self.data = X * weight
 
-    def process(self):
-        data = self._features_sim
-        n_sample = len(self.indexs)
-        all_sim = DataFrame(data=zeros((n_sample, n_sample)), index=self.indexs, columns=self.indexs)
-        for key in data.keys():
-            all_sim += data[key] * self.weight[key]
+    def transform(self, X=None):
+        if not hasattr(self, 'data'):
+            raise Exception('fit must be taken ahead of transform')
+        self.distance = self._calculate_cosine_similarity(self.data)
+        n_sample = self.data.shape[0]
+        for i in range(n_sample):
+            yield self._indexs[i], self._calculate_output(self._indexs, self.distance[i, :])
 
-        for index in self.indexs:
-            yield index, self._calculate_output(index, all_sim)
-
-    def weight_search(self, train_dataset, features_sim=None, patch_size=20,
-                      iter_num=10, seed_times=20, verbose=False):
+    def weight_search(self, X, std, patch_size=20, iter_num=10, seed_times=20, verbose=False):
         '''
         search weight for every feature one by one, by comparing the ratio of same id between
         the outputs and douban'recommends
@@ -124,7 +159,7 @@ class Sim(object):
         ----------
         features_sim: dict
             key->feature name, value->feature similari matrix, pandas.DataFrame
-        train_dataset:  dict
+        std:  dict
             key->cover_id, value->recommend list
         patch_size : int, default 20
             every calculation use samples of [patch_size]
@@ -137,69 +172,67 @@ class Sim(object):
             print the search infomation for trace process track
 
         Returns
-        ----------
-        weight: dict
+        ------------
+        weight: list like
         score: float
         '''
-        if features_sim is None:
-            features_sim = self._features_sim
-        if patch_size > len(train_dataset):
-            warnings.warn('patch_size should less than train_dataset')
+        from numpy import ones, concatenate
+        if len(std) < patch_size:
+            warnings.warn('patch_size should less than std')
         weight_space = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1]
-        all_train_cids = train_dataset.keys()
-        indexs = features_sim[features_sim.keys()[0]].index
-        seed_result_keep = []
+        all_std_cids = std.keys()
+        seed_result_cache = []
         # start seed
-        for seed_index in range(seed_times):
-            all_sim = DataFrame(data=zeros((len(indexs), len(indexs))), index=indexs, columns=indexs)
-            # initial weight dict
-            weights_dict = {key: weight_space[randint(len(weight_space))] for key in features_sim}
+        n_feature = len(self._feat_properties)
+        for _ in range(seed_times):
+            # initial weight
+            weight = [weight_space[randint(len(weight_space))]
+                      for _ in range(n_feature)]
             # initial similar matrix between samples
-            for key, frame in features_sim.iteritems():
-                all_sim += weights_dict[key] * frame
             # circle all weights space
             best_score = 0
             if verbose is True:
-                print 'origin weight {0}'.format(weights_dict)
+                print '0 weight {0}'.format(weight)
+            # todo: for to while
             for iter_index in range(iter_num):
                 # search at single feature
-                old_weights_dict = weights_dict.copy()
-                for feature, feat_sim in features_sim.iteritems():
-                    all_sim -= weights_dict[feature] * feat_sim
+                old_weight = list(weight)
+                for feat_id in range(n_feature):
                     # calculate best weight of maximum score
-                    for feature_weight in weight_space:
-                        all_sim += feature_weight * feat_sim
-                        idx_tmp = permutation(len(train_dataset))[:patch_size]
-                        train_cids = map(lambda idx: all_train_cids[idx], idx_tmp)
-                        tmp = {key: train_dataset[key] for key in train_cids}
-                        score = self._calculate_metric(tmp, all_sim)
-                        all_sim -= feature_weight * feat_sim
+                    for w in weight_space:
+                        weight[feat_id] = w
+                        weight_vec = concatenate([tmp * w for tmp, w in zip(map(lambda x: ones(x), self._feat_properties), weight)])
+                        distance = self._calculate_cosine_similarity(X * weight_vec)
+                        # select batch of std douban result for scoreing the weight
+                        idx_tmp = permutation(len(std))[:patch_size]
+                        train_cids = map(lambda idx: all_std_cids[idx], idx_tmp)
+                        tmp = {key: std[key] for key in train_cids}
+                        score = self._calculate_metric(tmp, distance, self._indexs)
                         # update feature weight when better score
-                        weights_dict[feature] = feature_weight if best_score < score else weights_dict[feature]
+                        weight[feat_id] = w if best_score < score else weight[feat_id]
                         best_score = score if best_score < score else best_score
 
                     if verbose is True:
-                        print '''weight dict: {0} of feature {1}, score: {2}
-                          '''.format(weights_dict, feature, best_score)
-                    all_sim += weights_dict[feature] * feat_sim
+                        print('weight dict: %d of feature %d, score: %d'
+                              % (weight, feat_id, best_score))
 
                 # if no change in one search, quit
-                if old_weights_dict == weights_dict:
+                if old_weight == weight:
                     if verbose is True:
                         print 'no change times {0}'.format(iter_index)
                     break
-            seed_result_keep.append([best_score, weights_dict])
-        seed_result_keep.sort(key=lambda x: x[0], reverse=True)
-        self.weight = seed_result_keep[0][1]
-        self.score = seed_result_keep[0][0]
-        return self.weight, self.score
+            seed_result_cache.append([best_score, weight])
+        seed_result_cache.sort(key=lambda x: x[0], reverse=True)
+        w = seed_result_cache[0][1]
+        s = seed_result_cache[0][0]
+        return w, s
 
-    def _calculate_metric(self, stand_dict, similar_all):
+    def _calculate_metric(self, std_dict, dist_all, indexs):
         same_size = 0
         douban_filtered_total_size = 0
-        for cid, std_rec in stand_dict.iteritems():
+        for cid, std_rec in std_dict.iteritems():
             try:
-                output = self._calculate_output(cid, similar_all, debug=True)
+                output = self._calculate_output(indexs, dist_all[indexs == cid, :], debug=True)
             except Exception:
                 # traceback.print_exc()
                 # raise()
@@ -207,16 +240,26 @@ class Sim(object):
                 std_rec = []
             same_size += len(set(output).intersection(set(std_rec)))
             douban_filtered_total_size += len(std_rec)
-        douban_filter_miss_num = self.douban_std_rec_num * len(stand_dict) - douban_filtered_total_size
-        score = (same_size + douban_filter_miss_num / 2.000) / (self.douban_std_rec_num * len(stand_dict))
+        douban_filter_miss_num = self.douban_std_rec_num * len(std_dict) - douban_filtered_total_size
+        score = (same_size + douban_filter_miss_num / 2.000) / (self.douban_std_rec_num * len(std_dict))
         return score
 
-    def _calculate_output(self, cover_id, similar_frame, debug=False):
-        if LooseVersion(__version__) >= LooseVersion('0.17.0.'):
-            result = similar_frame.sort_values(by=cover_id, ascending=True, axis=0)[cover_id]
-        else:
-            result = similar_frame.sort(columns=cover_id, ascending=True, axis=0)[cover_id]
+    def _calculate_output(self, ids, data, debug=False):
+        from numpy import argsort
+        if len(data.shape) != 1:
+            raise TypeError('data must be 1-dimension')
+        sorted_ids = argsort(data, kind='quicksort')[:self._out_record_num + 1]
         if debug is True:
-            return result.index[1: self.out_record_num + 1]
-        format_result = {'Results': result[1: self.out_record_num + 1].to_dict(), 'V': '4.0.0'}
+            return ids[sorted_ids]
+        tmp = {ids[i]: data[i] for i in sorted_ids}
+        format_result = {'Results': tmp, 'V': '5.0.0'}
+        return format_result
+
+    def _calculate_output_lazy(self, ids, data, debug=False):
+        xs = [(t1, t2) for t1, t2 in zip(ids, data)]
+        ls = LazySorted(xs, key=lambda x: x[1], reverse=True)
+        if debug is True:
+            return map(lambda x: x[0], ls[:self._out_record_num])
+        tmp = {x[0]: x[1] for x in ls[:self._out_record_num]}
+        format_result = {'Results': tmp, 'V': '5.0.0'}
         return format_result
