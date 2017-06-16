@@ -25,6 +25,7 @@ import cPickle as pickle
 from pandas import DataFrame, Series
 from datetime import datetime, date, timedelta
 import re
+import os
 import traceback
 
 
@@ -221,6 +222,17 @@ def vector_dissimilarity(x, dtype='categorical'):
     return distance
 
 
+def cache_transform(filename, mode, var=None):
+    if mode == 'write':
+        with open(filename, 'wb') as f:
+            pickle.dump(var, f, protocol=True)
+        return True
+    elif mode == 'read':
+        with open(filename, 'rb') as f:
+            data = pickle.load(f)
+        return data
+
+
 def main(config_file, num=1000):
     import pandas as pd
     from kmedoids import cluster
@@ -234,16 +246,18 @@ def main(config_file, num=1000):
     database = cf.get('mongo', 'database')
     collection = cf.get('mongo', 'collection')
     collection = connect_mongodb(address, port, username, password, database, collection)
-    print 'connect monog success'
+    print 'connectted monogo'
     handler = Formatter()
     for model in models:
         if model not in ['tv', 'movie']:  continue
+        print('{0} start ...'.format(model))
         documents = collection.find({'model': model}).limit(num)
-        # documents = collection.find(condition)
+        # documents = collection.find({'model': model})
         all_model_data_df = handler.process(documents)
+        print('origin record get ready')
         data_df = all_model_data_df
 
-        year_df = pd.qcut(data_df['year'], 10, labels=False)  # discretization
+        year_df = pd.qcut(data_df['year'], 5, labels=False)  # discretization
         score_df = pd.qcut(data_df['score'], 5, labels=False)  # discretization
         # split high categorical feature to onehot coding
         train_tmp = []
@@ -274,30 +288,40 @@ def main(config_file, num=1000):
             score_mode = score_mode[0] if len(score_mode) != 0 else score_df.loc[ids_se][0]
             vec.append(score_mode)
             actor_attr_matrix.append(vec)
-
-        columns_name = ['num_program', 'tag', 'year', 'score']
-        actor_attrs = DataFrame(data=actor_attr_matrix, index=actor_list, columns=columns_name)
-        distances = vector_dissimilarity(actor_attrs['tag'], dtype='categorical')
-        distances += vector_dissimilarity(actor_attrs['year'], dtype='numerical')
-        distances += vector_dissimilarity(actor_attrs['score'], dtype='numerical')
-        distances += vector_dissimilarity(actor_attrs['num_program'], dtype='numerical')
         # dimension reducation for actors
-        actors_mapped, _ = cluster(distances, k=10)
+        cache_file = 'cache/{0}_actor_map.dat'.format(model)
+        if not os.path.exists(cache_file):
+            columns_name = ['num_program', 'tag', 'year', 'score']
+            actor_attrs = DataFrame(data=actor_attr_matrix, index=actor_list, columns=columns_name)
+            distances = vector_dissimilarity(actor_attrs['tag'], dtype='categorical')
+            distances += vector_dissimilarity(actor_attrs['year'], dtype='numerical')
+            distances += vector_dissimilarity(actor_attrs['score'], dtype='numerical')
+            distances += vector_dissimilarity(actor_attrs['num_program'], dtype='numerical')
+            print('no map for actor, start clustering')
+            actors_mapped, _ = cluster(distances, k=10)
+            print('map for actor ready')
+            cache_transform(cache_file, 'write', actors_mapped)
+        else:
+            actors_mapped = cache_transform(cache_file, 'read')
         trans_map = {k: v for k, v in zip(actor_list, actors_mapped)}
         tmp = all_model_data_df['actor'].apply(lambda x: '|'.join(map(lambda y: '%s' % trans_map.get(y, ''), x.split('|'))))
         actor_df = multi_label_format(tmp)
         train_tmp.extend([tag_df, actor_df, pd.get_dummies(year_df, prefix='year'), pd.get_dummies(score_df, prefix='score')])
-        size_per_feat_dict = [(k, v.shape[-1]) for k, v in zip(['language', 'country', 'writer', 'director',
-                                                                'tag', 'actor', 'year', 'score'], train_tmp)]
-        train_tmp.append(data_df['cover_id'])
-        train_df = pd.concat(train_tmp, axis=1)
+        features = ['language', 'country', 'writer', 'director', 'tag', 'actor', 'year', 'score']
+        size_per_feat_dict = [(k, v.shape[-1]) for k, v in zip(features, train_tmp)]
+        train_vec = list()
+        for df in train_tmp:
+            train_vec.append(df[~df.index.duplicated(keep='first')])
+        train_vec.append(data_df['cover_id'].drop_duplicates(keep='first'))
+        train_df = pd.concat(train_vec, axis=1)
+        train_df.fillna(value=0, inplace=True)
         train_df.drop_duplicates(subset=['cover_id'], inplace=True)
         yield model, {'values': train_df, 'property': size_per_feat_dict}
 
 
 if __name__ == '__main__':
-    config_file = '../etc/config.ini'
-    data_file_path = '../data'
+    config_file = './etc/config.ini'
+    data_file_path = './data'
     for model, block in main(config_file):
         with open(data_file_path + r'/' + model + r'.dat', 'wb') as f:
             pickle.dump(block, f, protocol=True)

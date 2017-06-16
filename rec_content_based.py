@@ -118,15 +118,19 @@ def main(data_file_path, config_file, mode=False):
         if mode == 'search':
             with open(data_file_path + r'/' + model + r'_douban.dat', 'rb') as f:
                 train_dataset = pickle.load(f)
-            logger.info('Success: load model {0} data from douban '.format(model))
+            logger.info('load {0} from douban '.format(model))
             logger.info('Start search weight ...')
             hehe = map(lambda x: x[1], data['property'])
             s = Sim(index=data['values']['cover_id'], feat_properties=hehe, std_output=train_dataset)
-            s.fit(data['values'][features])
-            print s.weight
+            data['values'].drop('cover_id', axis=1, inplace=True)
+            s.fit(data['values'].values)
+            logger.info('result of weight search: {0}, score: {1}'.format(s.weight, s.score))
+            print s.weight, s.score
             break
-        s = Sim(weight=weight[model], index=data['values']['cover_id'], feat_properties=data['property'])
-        s.fit(data['values'][features])
+        hehe = map(lambda x: x[1], data['property'])
+        s = Sim(weight=weight[model], index=data['values']['cover_id'], feat_properties=hehe)
+        data['values'].drop('cover_id', axis=1, inplace=True)
+        s.fit(data['values'].values)
         count = 0
         try:
             for cover_id, result in s.transform():
@@ -144,7 +148,7 @@ def main(data_file_path, config_file, mode=False):
             logger.error('catched error :{0}, processed num: {1}, model: {2}'.format(e, count, model))
             traceback.print_exc()
             raise Exception('Error')
-        logger.info('model {0} has finished'.format(model))
+        logger.info('model {0} has finished, num of record: {1}'.format(model, count))
     logger.info('Finished')
 
 
@@ -155,6 +159,6 @@ if __name__ == '__main__':
     data_file_path = r'./data'
     config_file = r'./etc/config.ini'
     mode = sys.argv[1]
-    if mode not in ['train', 'work', 'prefix']:
+    if mode not in ['search', 'work', 'prefix']:
         raise ValueError('mode should be one of train/work/prefix')
     main(data_file_path, config_file, mode)

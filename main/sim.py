@@ -145,7 +145,7 @@ class Sim(object):
     def transform(self, X=None):
         if not hasattr(self, 'data'):
             raise Exception('fit must be taken ahead of transform')
-        self.distance = self._calculate_cosine_similarity(self.data)
+        self.distance = self._calculate_euclidean_distance(self.data)
         n_sample = self.data.shape[0]
         for i in range(n_sample):
             yield self._indexs[i], self._calculate_output(self._indexs, self.distance[i, :])
@@ -202,7 +202,7 @@ class Sim(object):
                     for w in weight_space:
                         weight[feat_id] = w
                         weight_vec = concatenate([tmp * w for tmp, w in zip(map(lambda x: ones(x), self._feat_properties), weight)])
-                        distance = self._calculate_cosine_similarity(X * weight_vec)
+                        distance = self._calculate_euclidean_distance(X * weight_vec)
                         # select batch of std douban result for scoreing the weight
                         idx_tmp = permutation(len(std))[:patch_size]
                         train_cids = map(lambda idx: all_std_cids[idx], idx_tmp)
@@ -232,9 +232,12 @@ class Sim(object):
         douban_filtered_total_size = 0
         for cid, std_rec in std_dict.iteritems():
             try:
-                output = self._calculate_output(indexs, dist_all[indexs == cid, :], debug=True)
+                record_dist = dist_all[indexs == cid, :].flatten()
+                if record_dist.size == 0:
+                    raise ValueError('cid of std_dict not in indexs')
+                output = self._calculate_output(indexs, record_dist, debug=True)
             except Exception:
-                # traceback.print_exc()
+                traceback.print_exc()
                 # raise()
                 output = []
                 std_rec = []
@@ -247,7 +250,7 @@ class Sim(object):
     def _calculate_output(self, ids, data, debug=False):
         from numpy import argsort
         if len(data.shape) != 1:
-            raise TypeError('data must be 1-dimension')
+            raise TypeError('data must be 1-dimension, but {0} given'.format(len(data.shape)))
         sorted_ids = argsort(data, kind='quicksort')[:self._out_record_num + 1]
         if debug is True:
             return ids[sorted_ids]
