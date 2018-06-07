@@ -4,161 +4,128 @@
 calculation of similarity
 ==========================
 
-use charactor 'language', 'country', 'writer', 'director', 'tag', 'actor', 'year', 'score'
-
+use charactor  'tag', 'director', 'country',
+    'cast', 'language', 'year', 'grade_score'
 To redis it is that result of calculation be saved
 
 Created by:
     yonggang Huang
-In:
-    05-25-2017
+On:
+    03-31-2017
+Modified:
+    05-30-2018
 """
-import logging
-import redis
+
 import json
 import cPickle as pickle
-import ConfigParser
-from datetime import date, timedelta
-from main.sim import Sim
-import sys
+from numpy import load
+from datetime import date
+from main import Sim
+from util import get_logger, get_redis_client
 import traceback
+import argparse
+import os
+import sys
 reload(sys)
 sys.setdefaultencoding('utf-8')
 
+MODELS = ['movie', 'tv',
+          'sports', 'entertainment', 'variety',
+          'education', 'doc', 'cartoon']
+WEIGHT = {'movie': {'language': 0.1, 'country': 0.5,
+                    'tag': 0.9, 'cast': 0.3, 'director': 0.8,
+                    'grade_score': 0.4, 'year': 0.4},
+          'tv': {'language': 0.9, 'country': 0.9,
+                 'tag': 0.5, 'cast': 1, 'director': 0.9,
+                 'grade_score': 0.7, 'year': 0.7, },
+          "cartoon": {"country": 0.5, "tag": 0.9, "year": 0.7, }, }
 
-def set_logger():
-    format = '''[ %(levelname)s %(asctime)s @ %(process)d] (%(filename)s:%(lineno)d) - %(message)s'''
-    curDate = date.today() - timedelta(days=0)
-    log_name = './log/similar_{0}.log'.format(curDate)
-    formatter = logging.Formatter(format)
-    logger = logging.getLogger("vav_result")
-    handler = logging.FileHandler(log_name, 'a')
-    logger.setLevel(logging.INFO)
-    handler.setLevel(logging.INFO)
-    handler.setFormatter(formatter)
-    logger.addHandler(handler)
-    return logger
+KEY_PATTERN = 'AlgorithmsCommonBid_Cchiq3Test:SIM:ITI:{}'
 
+DEBUG = False
 
-logger = set_logger()
-
-
-def init_client(config_file_path):
-    global logger
-    cf = ConfigParser.ConfigParser()
-    cf.read(config_file_path)
-    address = cf.get('redis', 'address')
-    port = int(cf.get('redis', 'port'))
-    logger.info('connect redis: {0}:{1}'.format(address, port))
-    try:
-        client = redis.StrictRedis(address, port)
-    except Exception, e:
-        logger.error('connect redis fail: {0}'.format(e))
-        sys.exit()
-    else:
-        logger.info('connection success')
-        return client
+curDate = date.today().strftime("%Y-%m-%d")
+logger = get_logger('./log/similar_{0}.log'.format(curDate))
 
 
-def value_fix(value, prefix_map):
-    '''
-        add prefix for every item's value
+def main(config, mode, data_file_path, ):
 
-        Parameters:
-        ----------
-        value: {key1:value1, key2:value2,...}, dict
-        prefix_map: {key:prefix,...}, dict\
+    def load_data(model, static=False):
+        data = dict()
+        logger.info('Load {} data'.format(model))
+        data = dict()
+        for feat in WEIGHT[model].keys():
+            if static:
+                data[feat] = (data_file_path + r'/' + model + "_" + feat + ".npy")
+            else:
+                data[feat] = load(data_file_path + r'/' + model + "_" + feat + ".npy")
+        id_list = load(data_file_path + r'/' + model + "_" + "id_" + ".npy")
+        logger.info('the features of {}: {}'.format(model, data.keys()))
+        return data, id_list
 
-        Returns:
-        --------
-        new_value:  {key1:value1, key2:value2,...}, dict
-    '''
-    result = value
-    for key, value in result['Results'].iteritems():
-        prefix = prefix_map.get(key, None)
-        # filter out non-prefix record in recommend result
-        if prefix is None:
-            result['Results'].pop(key, None)
-            continue
-        result['Results'][key] = prefix + ':' + result['Results'][key]
-    return result
-
-
-def main(data_file_path, config_file, mode=False):
-    global logger
-    features = ['language', 'country', 'writer', 'director', 'tag', 'actor', 'year', 'score']
-    weight = {'movie': [0.8, 0.1, 0.4, 0.8, 0.5, 0.1, 0.4, 1],
-              'tv': [0.5, 0.8, 0.5, 0.1, 0.9, 0.1, 0.5, 0.4]}
-
-    models = ['movie', 'tv',
-              'sports', 'entertainment', 'variety',
-              'education', 'doc', 'cartoon']
-
-    if mode == 'search':
-        logger.info('config: Search weight from douban')
-    else:
-        logger.info('config: Use history weight')
-        logger.info('History weight: {0}'.format(weight))
-        if mode is 'prefix':
-            logger.info('load prefix map from local file')
-            with open(data_file_path + r'/' + 'prefix_map' + r'.dat', 'rb') as f:
-                prefixs = pickle.load(f)
-
-    logger.info('start')
-
-    con = init_client(config_file)
-    key_pattern = 'AlgorithmsCommonBid_Cchiq3Test:SIM:ITI:'
-
-    for model in models:
-        if model not in ['tv', 'movie']: continue
-        with open(data_file_path + r'/' + model + r'.dat', 'rb') as f:
-            data = pickle.load(f)
-        logger.info('load model {0} data success'.format(model))
-        logger.info('Start process data of model : {0}'.format(model))
-        if mode == 'search':
+    def train():
+        for model in MODELS:
+            if model not in ['tv', 'movie', "cartoon"]:
+                continue
+            data, ids = load_data(model, static=True)
+            logger.info('Init sim handler')
+            s = Sim(data, ids, static_=True)
+            logger.info('Search weight from douban')
+            logger.info('Load {} data from douban '.format(model))
             with open(data_file_path + r'/' + model + r'_douban.dat', 'rb') as f:
-                train_dataset = pickle.load(f)
-            logger.info('load {0} from douban '.format(model))
-            logger.info('Start search weight ...')
-            hehe = map(lambda x: x[1], data['property'])
-            s = Sim(index=data['values']['cover_id'], feat_properties=hehe, std_output=train_dataset)
-            data['values'].drop('cover_id', axis=1, inplace=True)
-            s.fit(data['values'].values)
-            logger.info('result of weight search: {0}, score: {1}'.format(s.weight, s.score))
-            print s.weight, s.score
-            break
-        hehe = map(lambda x: x[1], data['property'])
-        s = Sim(weight=weight[model], index=data['values']['cover_id'], feat_properties=hehe)
-        data['values'].drop('cover_id', axis=1, inplace=True)
-        s.fit(data['values'].values)
-        count = 0
-        try:
-            for cover_id, result in s.transform():
-                logger.debug('{0}  {1}'.format(cover_id, result))
-                # print cover_id, result
-                if mode == 'prefix':
-                    con.set(key_pattern + cover_id, json.dumps(value_fix(result, prefixs)))
-                    con.expire(key_pattern + cover_id, 1296000)
+                dataset = pickle.load(f)
+            logger.info('Searching weight ...')
+            w, score = s.weight_search(dataset, patch_size=200, verbose=True)
+            logger.info('Finished weight search, socre: {}, weight: {}'.format(score, w))
+
+    def predict():
+
+        logger.info('Use history weight: {}'.format(WEIGHT))
+        logger.info("Initting connection to redis")
+        con = get_redis_client(config)
+        for model in MODELS:
+            if model not in ["tv", "movie", "cartoon", ]:
+                continue
+            data, ids = load_data(model, static=True)
+            logger.info('Init sim handler')
+            s = Sim(data, ids, weight=WEIGHT[model], static_=True)
+            count = 0
+            try:
+                for cover_id, result in s.process():
                     count += 1
-                elif mode == 'work':
-                    con.set(key_pattern + cover_id, json.dumps(result))
-                    con.expire(key_pattern + cover_id, 1296000)
-                    count += 1
-        except Exception, e:
-            logger.error('catched error :{0}, processed num: {1}, model: {2}'.format(e, count, model))
-            traceback.print_exc()
-            raise Exception('Error')
-        logger.info('model {0} has finished, num of record: {1}'.format(model, count))
-    logger.info('Finished')
+                    if DEBUG:
+                        logger.info('{}  {}'.format(cover_id, result))
+                        continue
+                    con.set(KEY_PATTERN.format(cover_id), json.dumps(result))
+                    con.expire(KEY_PATTERN.format(cover_id), 2592000)
+            except Exception, e:
+                logger.error('catched error :{}, processed num: {}, model: {}'.format(e, count, model))
+                traceback.print_exc()
+                raise Exception('Error')
+            logger.info('Num of {} result : {}'.format(model, count))
+            print('Num of {} result : {}'.format(model, count))
+        logger.info('Finished')
+
+    if mode == "predict":
+        predict()
+    elif mode == "train":
+        train()
+    else:
+        raise ValueError('Mode Error')
 
 
 if __name__ == '__main__':
-    if len(sys.argv) != 2:
-        sys.stderr.write("Usage: rec_content_based <train/work/prefix>")
-        exit(-1)
-    data_file_path = r'./data'
-    config_file = r'./etc/config.ini'
-    mode = sys.argv[1]
-    if mode not in ['search', 'work', 'prefix']:
-        raise ValueError('mode should be one of train/work/prefix')
-    main(data_file_path, config_file, mode)
+    parser = argparse.ArgumentParser(description="calculation similarity between items\n")
+    parser.add_argument("-config", "--configure", type=str,
+                        default="etc/config.ini", help="configure file")
+    parser.add_argument("-cache", default="data", help="work on debug mode")
+    parser.add_argument("-d", "--debug", action="store_true", help="debug mode")
+    parser.add_argument("mode", type=str, choices=["predict", "train"],
+                        help="work mode <train / predict>")
+    args = parser.parse_args()
+    if not os.path.isfile(args.configure):
+        raise Exception("Invalid configure file")
+    if not os.path.isdir(args.cache):
+        raise Exception("Invalid cache directory")
+    DEBUG = True if args.debug else False
+    main(args.configure, args.mode, args.cache)

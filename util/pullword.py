@@ -26,10 +26,8 @@ def pullword(context, threshold=0.5, debug=False, num=3):
     '''
     pullword = r'http://api.pullword.com'
     debug_flag = 1 if debug is True else 0
-    url = '{0}/get.php?source={1}&param1={2}&param2={3}'.format(pullword,
-                                                                context.strip(),
-                                                                threshold,
-                                                                debug_flag)
+    url = ('{0}/get.php?source={1}&param1={2}&param2={3}'
+           .format(pullword, context.strip(), threshold, debug_flag))
     # print url
     raw = urlopen(url).read()
     w = raw.strip().split(u'\r\n')
@@ -73,12 +71,10 @@ def extract_text_feature(dataset, threshold=0.9, maxnum=3):
 
 
 if __name__ == '__main__':
-    context = '''北京遇上西雅图他们不喊累、不闹情绪、'''
-    print pullword(context)
+    context = '''正义红师'''
+    for w in pullword(context):
+        print(w)
 
-    s1 = u'''人工智能将在未来十年取代一半人的工作。在需要考虑少于5秒的领域，人根本不是机器的对手，他们不喊累、不闹情绪、犯错率极低。但也正是人工智能这样的优点，证明我们还有机会，
-     '''
-    s2 = u'''是一种用于信息检索与数据挖掘的常用加权技术.简介TF-IDF是一种统计方法，用以评估一字词对于一个文件集或一个语料库中'''
-    data, features = extract_text_feature([s1, s2])
-    print features
-    print data.toarray()
+    # data, features = extract_text_feature([s1, s2])
+    # print features
+    # print data.toarray()
