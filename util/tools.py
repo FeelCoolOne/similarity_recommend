@@ -49,7 +49,7 @@ def get_logger(filename, debug=False):
 
 def write_into_redis(key_pattern, item_dict, verbose=True):
 
-    proxy_ip = '10.66.1.168'
+    proxy_ip = '127.0.0.1'
     proxy_port = 19000
 
     client = redis.Redis(host=proxy_ip, port=proxy_port)

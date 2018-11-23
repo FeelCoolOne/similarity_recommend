@@ -1,21 +1,4 @@
 # encoding:utf-8
-"""
-==========================
-calculation of similarity
-==========================
-
-use charactor  'tag', 'director', 'country',
-    'cast', 'language', 'year', 'grade_score'
-To redis it is that result of calculation be saved
-
-Created by:
-    yonggang Huang
-On:
-    03-31-2017
-Modified:
-    05-30-2018
-"""
-
 import json
 import cPickle as pickle
 from numpy import load

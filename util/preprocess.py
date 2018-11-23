@@ -1,28 +1,4 @@
 # encoding:utf-8
-"""
-============================================================
-Fetch and clean media data before calculation of similarity
-============================================================
-
-fetch data from mongodb.
-use charactor  'tag', 'director', 'country', 'cast', 'language', 'year', 'grade_score'
-
-Script output:
-    data/{model_name}.dat
-        local clean data for calculation to reading directly from locals
-        make local cache since frequence of similarity calculation
-        be greater than of the scripts that fetch and clean media data
-
-Created by:
-    yonggang Huang
-
-on:
-    03-31-2017
-
-modified:
-    05-29-2018
-"""
-
 import logging
 from datetime import date
 import cPickle as pickle

@@ -1,25 +1,4 @@
 # encoding:utf-8
-"""
-==========================
-calculation of similarity
-==========================
-
-charactor:
-    'tag', 'director', 'country',
-    'actor', 'language', 'year', 'score'
-
-feature:
-    weight for character can be search from douban standard recommends
-
-Created by:
-    yonggang Huang
-In:
-    03-31-2017
-Modified:
-    05-31-2018
-Caution:
-    Incompatible with python 3.0+
-"""
 from __future__ import division
 from pandas import DataFrame
 from numpy.linalg import norm

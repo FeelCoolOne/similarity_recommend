@@ -1,6 +1,5 @@
 # encoding:utf-8
-# get data id group by model
-# and save to local file '../data/id.dat'
+
 from pymongo import MongoClient
 import logging
 from datetime import date, timedelta

@@ -1,17 +1,4 @@
 # encoding:utf-8
-"""
-===================================
-Test for calculation of similarity
-===================================
-
-use charactor  'tag', 'director', 'country',
-    'actor', 'language', 'year', 'score'
-
-Created by:
-    yonggang Huang
-In:
-    03-31-2017
-"""
 
 from pandas import DataFrame, Series
 from numpy.random import rand
